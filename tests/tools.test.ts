@@ -49,7 +49,6 @@ describe("Tool definitions", () => {
     const legacyTools = [
       "create_image_pixflux",
       "create_image_bitforge",
-      "animate_with_skeleton",
       "animate_with_text",
       "inpaint",
       "rotate",
@@ -61,7 +60,6 @@ describe("Tool definitions", () => {
         const props = Object.keys(tool.inputSchema.properties as Record<string, unknown>);
 
         // Legacy endpoints should NOT have v2 field names
-        expect(props).not.toContain("guidance_scale");
         expect(props).not.toContain("remove_background");
         expect(props).not.toContain("ai_freedom");
       });
@@ -85,11 +83,10 @@ describe("Tool definitions", () => {
       expect(props).toContain("skeleton_keypoints");
     });
 
-    it("animate_with_skeleton has correct guidance scales", () => {
+    it("animate_with_skeleton has correct guidance_scale", () => {
       const tool = tools.find((t) => t.name === "animate_with_skeleton")!;
       const props = Object.keys(tool.inputSchema.properties as Record<string, unknown>);
-      expect(props).toContain("reference_guidance_scale");
-      expect(props).toContain("pose_guidance_scale");
+      expect(props).toContain("guidance_scale");
     });
 
     it("rotate has view_change and direction_change", () => {

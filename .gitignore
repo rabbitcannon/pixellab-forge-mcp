@@ -1,4 +1,5 @@
 node_modules/
+pixelforge-output/
 dist/
 .mcp.json
 .env

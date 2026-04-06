@@ -30,53 +30,67 @@ function saveImage(base64: string, toolName: string, index: number, id?: string)
   return filepath;
 }
 
+export interface ExtractedImage {
+  base64: string;
+  filePath: string;
+}
+
 /**
  * Walk through an API response, find all base64 image data,
- * save them to disk, and return the file paths.
+ * save them to disk, and return the file paths + raw base64 for MCP image blocks.
+ * Also strips base64 data from the result to keep the JSON response small.
  */
 export function extractAndSaveImages(
   result: unknown,
   toolName: string,
-): { savedFiles: string[]; result: unknown } {
-  const savedFiles: string[] = [];
+): { images: ExtractedImage[]; result: unknown } {
+  const images: ExtractedImage[] = [];
 
   if (!result || typeof result !== "object") {
-    return { savedFiles, result };
+    return { images, result };
   }
 
   const data = result as Record<string, unknown>;
 
-  // Single image response: { image: { base64: "..." } }
+  // Single image response: { image: { type: "base64", base64: "...", format: "png" } }
   if (isImageObj(data.image)) {
-    const path = saveImage((data.image as any).base64, toolName, 0);
-    savedFiles.push(path);
+    const b64 = (data.image as any).base64;
+    const path = saveImage(b64, toolName, 0);
+    images.push({ base64: b64, filePath: path });
+    stripBase64(data.image);
   }
 
   // Single image as direct base64 string: { image: "base64..." }
   if (typeof data.image === "string" && data.image.length > 100) {
     const path = saveImage(data.image, toolName, 0);
-    savedFiles.push(path);
+    images.push({ base64: data.image, filePath: path });
+    data.image = "[base64 image data stripped]";
   }
 
-  // Multiple images: { images: [{ base64: "..." }, ...] }
+  // Multiple images: { images: [{ type: "base64", base64: "..." }, ...] }
   if (Array.isArray(data.images)) {
     data.images.forEach((img: unknown, i: number) => {
       if (isImageObj(img)) {
-        const path = saveImage((img as any).base64, toolName, i);
-        savedFiles.push(path);
+        const b64 = (img as any).base64;
+        const path = saveImage(b64, toolName, i);
+        images.push({ base64: b64, filePath: path });
+        stripBase64(img);
       } else if (typeof img === "string" && img.length > 100) {
         const path = saveImage(img, toolName, i);
-        savedFiles.push(path);
+        images.push({ base64: img, filePath: path });
+        (data.images as any[])[i] = "[base64 image data stripped]";
       }
     });
   }
 
-  // Frames response: { frames: [{ base64: "..." }, ...] }
+  // Frames response: { frames: [{ type: "base64", base64: "..." }, ...] }
   if (Array.isArray(data.frames)) {
     data.frames.forEach((frame: unknown, i: number) => {
       if (isImageObj(frame)) {
-        const path = saveImage((frame as any).base64, toolName, i);
-        savedFiles.push(path);
+        const b64 = (frame as any).base64;
+        const path = saveImage(b64, toolName, i);
+        images.push({ base64: b64, filePath: path });
+        stripBase64(frame);
       }
     });
   }
@@ -89,8 +103,10 @@ export function extractAndSaveImages(
       if (value && typeof value === "object") {
         const dirData = value as Record<string, unknown>;
         if (isImageObj(dirData.image)) {
-          const path = saveImage((dirData.image as any).base64, `${toolName}_${dir}`, i);
-          savedFiles.push(path);
+          const b64 = (dirData.image as any).base64;
+          const path = saveImage(b64, `${toolName}_${dir}`, i);
+          images.push({ base64: b64, filePath: path });
+          stripBase64(dirData.image);
           i++;
         }
       }
@@ -103,8 +119,10 @@ export function extractAndSaveImages(
       if (tile && typeof tile === "object") {
         const t = tile as Record<string, unknown>;
         if (isImageObj(t.image)) {
-          const path = saveImage((t.image as any).base64, toolName, i);
-          savedFiles.push(path);
+          const b64 = (t.image as any).base64;
+          const path = saveImage(b64, toolName, i);
+          images.push({ base64: b64, filePath: path });
+          stripBase64(t.image);
         }
       }
     });
@@ -113,10 +131,10 @@ export function extractAndSaveImages(
   // Nested in last_response (from job polling)
   if (data.last_response && typeof data.last_response === "object") {
     const nested = extractAndSaveImages(data.last_response, toolName);
-    savedFiles.push(...nested.savedFiles);
+    images.push(...nested.images);
   }
 
-  return { savedFiles, result };
+  return { images, result };
 }
 
 function isImageObj(val: unknown): boolean {
@@ -126,4 +144,11 @@ function isImageObj(val: unknown): boolean {
     typeof (val as any).base64 === "string" &&
     (val as any).base64.length > 100
   );
+}
+
+/** Replace base64 data in-place with a placeholder to keep JSON responses small */
+function stripBase64(obj: unknown): void {
+  if (obj && typeof obj === "object") {
+    (obj as any).base64 = "[stripped]";
+  }
 }

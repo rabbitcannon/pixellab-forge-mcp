@@ -100,7 +100,7 @@ Generation tools automatically poll for results — no manual job status checkin
 |------|-------------|-------------|
 | `create_character_4dir` | Character with N/S/E/W views | `proportions`, `view`, `text_guidance_scale`, `outline/shading/detail`, `color_image`, `force_colors`, `template_id`, `isometric`, `seed` |
 | `create_character_8dir` | Character with 8 directional views | Same as 4dir |
-| `animate_character` | Animate existing character | `template_animation_id` (walk, run, fireball, etc.), `action_description`, `directions`, `outline/shading/detail`, `seed` |
+| `animate_character` | Animate existing character | `template_animation_id` (walking, fireball, breathing-idle, etc. — [47 templates](docs/prompting-guide.md#animation-templates)), `action_description`, `directions`, `outline/shading/detail`, `seed` |
 | `create_object_4dir` | Object with 4 directional views | `view`, `text_guidance_scale`, `outline/shading/detail`, `color_image`, `force_colors`, `seed` |
 | `list_characters` / `list_objects` | List with pagination | `limit`, `offset` |
 | `get_character` / `get_object` | Get details by ID | |
@@ -186,19 +186,73 @@ Most tools share these parameters, but the field names differ between endpoint g
 
 Character, object, tileset, and map object endpoints also accept `text_guidance_scale`, `outline`, `shading`, `detail`, and `color_image`.
 
-## Usage Examples
+## Usage
 
-Once configured, ask your AI assistant things like:
+Just describe what you want in plain language. The assistant picks the right tool and parameters automatically.
 
-- "Generate a 32x32 pixel art sword"
-- "Create a character with 4 directional views: a knight in silver armor with chibi proportions"
-- "Make a top-down grass and dirt tileset at 16x16"
-- "Animate my character with the walk template"
-- "Convert this photo into pixel art"
-- "Create an isometric stone block tile"
-- "Edit this sprite to add a red cape"
-- "Generate 8 rotations of this character"
-- "Create a map object: wooden barrel, high top-down view"
+### Quick Examples
+
+**Sprites and icons:**
+```
+"Generate a 64x64 pixel art knight with a blue cape, no background"
+"Make a 16x16 health potion icon"
+"Create a 128x128 dragon boss with detailed shading and thick outlines"
+```
+
+**Characters (persistent, multi-directional):**
+```
+"Create a 48x48 character with 4 directions: a dwarf blacksmith in a leather apron, chibi proportions"
+"Animate that character with the walk template"
+"Now add a fireball animation"
+```
+
+**Tilesets:**
+```
+"Create a 32x32 top-down tileset: ocean water below, sandy beach on top, foam transition"
+"Make a 16x16 sidescroller tileset with stone platforms"
+```
+
+**Editing existing art:**
+```
+"Edit this sprite to make the armor gold instead of silver"
+"Remove the background from this image"
+"Generate 8 rotations of this character"
+```
+
+### Which Tool Gets Used?
+
+The assistant picks the right tool automatically, but the key decision is:
+
+- **`generate_image`** — default for most requests, highest quality, largest sizes
+- **`generate_with_style`** — when you want new art matching existing art ("in the same style as these sprites")
+- **`generate_ui`** — for game UI elements (buttons, panels, health bars, icons)
+- **`create_tileset` / `create_tiles_pro`** — for tileable terrain; standard for square RPG tiles, pro for hex/isometric/octagon
+- **`create_character_4dir` / `8dir`** — for persistent characters you can animate later by ID
+
+### Key Concepts
+
+- **Sizes are in pixels** as `width x height` — different tools have different limits (e.g. characters max 128x128, `generate_image` goes up to 792x688)
+- **Transparent backgrounds** are the default on most tools — ask for a background explicitly if you want one
+- **Characters are persistent** — once created, you can animate them by ID without re-describing
+- **Seeds** make results reproducible — same seed + same description = same output
+
+For detailed size limits, style controls, endpoint comparison, and step-by-step workflows, see the **[Prompting Guide](docs/prompting-guide.md)**.
+
+### Prompt Commands
+
+PixelForge includes MCP prompt templates that appear as slash commands in supported clients (Claude Desktop, Cursor, etc.):
+
+| Command | Description |
+|---------|-------------|
+| `pf:help` | Overview of all tools and how to use them |
+| `pf:sprite` | Generate a pixel art sprite |
+| `pf:character` | Create a character with directional views + animation |
+| `pf:animate` | Animate an existing sprite or character |
+| `pf:tileset` | Create a top-down or sidescroller tileset |
+| `pf:tiles` | Create hex, isometric, or octagon tiles |
+| `pf:ui` | Generate game UI elements |
+| `pf:style` | Generate art matching existing sprites' style |
+| `pf:edit` | Edit or modify an existing sprite |
 
 ## Reliability
 
