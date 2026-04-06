@@ -20,7 +20,7 @@ if (!apiKey) {
 const client = new PixelLabClient(apiKey);
 
 const server = new Server(
-  { name: "pixelforge-mcp", version: "1.0.0" },
+  { name: "pixelforge-mcp", version: "1.0.1" },
   { capabilities: { tools: {} } },
 );
 
