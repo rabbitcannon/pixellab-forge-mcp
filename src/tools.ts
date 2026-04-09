@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { PixelLabClient } from "./api-client.js";
 import { getPendingJobs, getJobLog } from "./job-log.js";
 
@@ -1113,5 +1115,30 @@ export const tools: ToolDef[] = [
     },
     handler: async (client, args) =>
       client.patch(`/objects/${args.object_id}/tags`, { tags: args.tags }),
+  },
+
+  // ═══════ UTILITY ═══════
+  {
+    name: "read_image",
+    description:
+      "Read a previously saved image from disk and return it as a Base64Image object " +
+      "that can be passed directly to other tools (e.g. edit_image, remove_background, " +
+      "image_to_pixelart). Use the file paths shown in earlier tool responses.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "Absolute path to a saved PNG image (from a previous tool response)",
+        },
+      },
+      required: ["file_path"],
+    },
+    handler: async (_client, args) => {
+      const filePath = resolve(args.file_path as string);
+      const buf = readFileSync(filePath);
+      const base64 = buf.toString("base64");
+      return { image: { type: "base64", base64, format: "png" } };
+    },
   },
 ];

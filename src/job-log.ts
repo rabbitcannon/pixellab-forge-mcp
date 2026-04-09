@@ -93,3 +93,8 @@ export function getPendingJobs(): JobEntry[] {
 export function getJobLog(): JobEntry[] {
   return prune(readLog());
 }
+
+export function getJobEndpoint(jobId: string): string | undefined {
+  const entry = readLog().find((e) => e.id === jobId);
+  return entry?.endpoint;
+}

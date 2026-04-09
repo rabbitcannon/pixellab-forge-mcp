@@ -12,6 +12,7 @@ import { PixelLabClient } from "./api-client.js";
 import { tools } from "./tools.js";
 import { prompts } from "./prompts.js";
 import { extractAndSaveImages } from "./save-images.js";
+import { getJobEndpoint } from "./job-log.js";
 
 const apiKey = process.env["PIXELLAB_API_KEY"];
 if (!apiKey) {
@@ -52,7 +53,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     const result = await tool.handler(client, args);
     process.stderr.write(`[pixellab-forge-mcp] Raw response keys for ${name}: ${result && typeof result === "object" ? JSON.stringify(Object.keys(result as object)) : typeof result}\n`);
-    const { images, result: strippedResult } = extractAndSaveImages(result, name);
+
+    // read_image returns raw base64 for use in subsequent tool calls — skip extraction/stripping
+    if (name === "read_image") {
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+
+    // Derive a meaningful filename from the prompt description when available
+    let imageLabel = name;
+    const desc = args.description ?? args.text;
+    if (typeof desc === "string" && desc.length > 0) {
+      imageLabel = desc
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")  // non-alphanumeric → underscore
+        .replace(/^_|_$/g, "")         // trim leading/trailing underscores
+        .slice(0, 60);                 // cap length
+    } else if (name === "get_job_status" && typeof args.job_id === "string") {
+      const endpoint = getJobEndpoint(args.job_id);
+      if (endpoint) {
+        imageLabel = endpoint.replace(/^\//, "").replace(/-/g, "_");
+      }
+    }
+
+    const { images, result: strippedResult } = extractAndSaveImages(result, imageLabel);
     process.stderr.write(`[pixellab-forge-mcp] Extracted ${images.length} image(s), valid for inline: ${images.filter(i => i.base64.length > 0).length}\n`);
     if (images.length > 0) {
       const first = images[0];
