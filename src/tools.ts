@@ -145,7 +145,7 @@ export const tools: ToolDef[] = [
   {
     name: "generate_image",
     description:
-      "Generate pixel art from a text description. The API auto-generates variants based on size: ≤42px → 64 images, 43-85px → 16, 86-170px → 4, >170px → 1. Use larger sizes for faster results with fewer variants. Supports reference images and style images for guidance.",
+      "Generate pixel art from a text description. PRIMARY generation tool — use this for standalone sprites, icons, and one-off images. 16-512px. Variants by size: ≤42px → 64, 43-85px → 16, 86-170px → 4, >170px → 1. For style-matched sets use generate_with_style. For game characters with directional views use create_character_4dir/8dir instead. For UI elements use generate_ui.",
     inputSchema: {
       type: "object",
       properties: {
@@ -177,7 +177,7 @@ export const tools: ToolDef[] = [
   {
     name: "generate_with_style",
     description:
-      "Generate pixel art matching a specific visual style from 1-4 style reference images.",
+      "Generate pixel art matching a specific visual style from 1-4 style reference images. Use this when you need consistent style across multiple assets. SQUARE images only, 16-512px. Auto-pads to nearest bucket (16/32/64/128/256/512). Variants: 16-32px → 64, 33-64px → 16, 65-128px → 4, 129-512px → 1.",
     inputSchema: {
       type: "object",
       properties: {
@@ -198,7 +198,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "generate_ui",
-    description: "Generate pixel art UI elements for games (buttons, panels, health bars, inventory slots, icons).",
+    description: "Generate pixel art UI elements for games — buttons, panels, health bars, inventory slots, icons, frames. Use this instead of generate_image when creating interface/HUD elements. Min 16x16, max 512x512.",
     inputSchema: {
       type: "object",
       properties: {
@@ -218,7 +218,7 @@ export const tools: ToolDef[] = [
   {
     name: "create_image_pixflux",
     description:
-      "Generate pixel art using the Pixflux engine. Supports color reference images, transparent backgrounds, and style controls. Size 32x32 to 400x400.",
+      "Generate pixel art using the legacy Pixflux engine. 32-400px. Prefer generate_image (v2) for most tasks — use Pixflux only when you need fine-grained control over outline/shading/detail style params, view/direction, or coverage_percentage.",
     inputSchema: {
       type: "object",
       properties: {
@@ -244,7 +244,7 @@ export const tools: ToolDef[] = [
   {
     name: "create_image_bitforge",
     description:
-      "Generate pixel art using the Bitforge engine. Supports style images, inpainting, skeleton keypoints, and color reference. Max 200x200.",
+      "Generate pixel art using the legacy Bitforge engine. Max 200x200. Prefer generate_image (v2) for most tasks — use Bitforge only when you need inline skeleton keypoints, combined inpainting+generation, or style_image influence control in a single call.",
     inputSchema: {
       type: "object",
       properties: {
@@ -280,7 +280,7 @@ export const tools: ToolDef[] = [
   {
     name: "image_to_pixelart",
     description:
-      "Convert a photograph or regular image into pixel art. Input max 1280x1280, output max 320x320.",
+      "Convert a photograph or regular image into pixel art. Input 16-1280px, output 16-320px. Recommended: output = 1/4 of input size.",
     inputSchema: {
       type: "object",
       properties: {
@@ -297,7 +297,7 @@ export const tools: ToolDef[] = [
   {
     name: "resize_image",
     description:
-      "AI-powered resize of a pixel art image to a different resolution while preserving quality.",
+      "AI-powered resize of a pixel art image to a different resolution while preserving quality. Source and target 16-200px. Best in steps: max 50% shrink or 2x grow per operation.",
     inputSchema: {
       type: "object",
       properties: {
@@ -344,7 +344,7 @@ export const tools: ToolDef[] = [
   {
     name: "edit_animation",
     description:
-      "Edit an existing animation sequence (2-16 frames) using a text description.",
+      "Edit an existing animation sequence (2-16 frames) using a text description. 16-256px. Use this to modify animations you already have — to create new animations from scratch use animate_with_text_v2 or animate_character.",
     inputSchema: {
       type: "object",
       properties: {
@@ -365,7 +365,7 @@ export const tools: ToolDef[] = [
   {
     name: "interpolate_frames",
     description:
-      "Generate intermediate animation frames between a start and end keyframe. Size 16x16 to 128x128.",
+      "Generate intermediate animation frames between a start and end keyframe. 16-128px. Use this to smooth out animations by adding in-between frames. For full animation creation from a single image use animate_with_text_v2.",
     inputSchema: {
       type: "object",
       properties: {
@@ -383,7 +383,7 @@ export const tools: ToolDef[] = [
   {
     name: "transfer_outfit",
     description:
-      "Transfer an outfit from a reference image onto animation frames (2-16 frames).",
+      "Transfer an outfit/costume from a reference image onto animation frames (2-16 frames, 32-256px). Use this to reskin an existing animation with a different character appearance.",
     inputSchema: {
       type: "object",
       properties: {
@@ -406,7 +406,7 @@ export const tools: ToolDef[] = [
   {
     name: "animate_with_skeleton",
     description:
-      "Create animation using skeleton keypoints for precise pose control. Size 16x16 to 256x256.",
+      "Create animation using skeleton keypoints for precise joint/pose control. Fixed sizes only: 16, 32, 64, 128, or 256px. Use this when you need exact body positioning per frame. For simpler text-described animation use animate_with_text_v2.",
     inputSchema: {
       type: "object",
       properties: {
@@ -432,7 +432,7 @@ export const tools: ToolDef[] = [
   {
     name: "animate_with_text",
     description:
-      "Create a character animation from text description and action. Fixed 64x64 size.",
+      "Legacy animation from text description + reference image. FIXED 64x64 only. Prefer animate_with_text_v2 (any size 32-256px) or animate_with_text_v3 (keyframe-based) for new work. Use animate_character if you already have a saved character ID.",
     inputSchema: {
       type: "object",
       properties: {
@@ -461,7 +461,7 @@ export const tools: ToolDef[] = [
   {
     name: "animate_with_text_v2",
     description:
-      "Animate an existing character image with text-described action. Size 32x32 to 256x256.",
+      "RECOMMENDED animation tool — animate a character image with a text-described action. Provide a reference image + action text. 32-256px. Frames by size: 32-64px → 16, 128-256px → 4. Use this when you have a character image but NOT a saved character ID. If you have a character ID, use animate_character instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -489,7 +489,7 @@ export const tools: ToolDef[] = [
   {
     name: "animate_with_text_v3",
     description:
-      "Animate from a first frame with optional last frame keyframe. 4-16 frames output.",
+      "Keyframe-based animation — provide a first frame and optional last frame, get interpolated animation. Best for precise start/end control. 4-16 frames, max 256px. Pixel budget: W×H×frames ≤ 524,288. Use animate_with_text_v2 instead if you just want to describe an action.",
     inputSchema: {
       type: "object",
       properties: {
@@ -522,7 +522,7 @@ export const tools: ToolDef[] = [
   {
     name: "generate_8_rotations",
     description:
-      "Generate 8 directional views of a character. Methods: rotate_character, create_with_style, create_from_concept. Size 32x32 to 168x168.",
+      "Generate 8 directional views from an existing image, style, or concept art. 32-168px. Does NOT create a persistent character — for that use create_character_8dir instead. Methods: rotate_character (from existing sprite), create_with_style (from description), create_from_concept (from concept art).",
     inputSchema: {
       type: "object",
       properties: {
@@ -547,7 +547,7 @@ export const tools: ToolDef[] = [
   {
     name: "rotate",
     description:
-      "Rotate a character from one view/direction to another. Size 16x16 to 128x128.",
+      "Rotate a single character sprite from one view/direction to another. Fixed sizes only: 16, 32, 64, or 128px. For generating all 8 directions at once use generate_8_rotations or create_character_8dir instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -577,7 +577,7 @@ export const tools: ToolDef[] = [
   {
     name: "inpaint_v3",
     description:
-      "Edit a specific region of a pixel art image using a mask. White mask = generate, black mask = preserve. Size 32-512px.",
+      "Edit a specific region of a pixel art image using a mask. White mask = generate, black mask = preserve. Image 32-512px, optional context image up to 1024x1024. Preferred over legacy inpaint (which caps at 200px).",
     inputSchema: {
       type: "object",
       properties: {
@@ -604,7 +604,7 @@ export const tools: ToolDef[] = [
   {
     name: "inpaint",
     description:
-      "Inpaint a pixel art image using the legacy Bitforge engine. Max 200x200.",
+      "Legacy inpainting using the Bitforge engine. Max 200x200. Prefer inpaint_v3 (up to 512px, better quality). Only use this if you need Bitforge-specific params like style controls or oblique projection during inpainting.",
     inputSchema: {
       type: "object",
       properties: {
@@ -633,7 +633,7 @@ export const tools: ToolDef[] = [
   {
     name: "edit_images",
     description:
-      "Edit 1-16 images using text description or a reference image. Size 32x32 to 512x512.",
+      "Batch-edit 1-16 images consistently using text or a reference image. Use this for editing animation frames or sprite sets uniformly. Output 32-512px, input max 256px each. Max frames by output size: 32-64px → 16, 65-80px → 9, 81-128px → 4, 129-512px → 1. For single image edits use edit_image instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -658,7 +658,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "edit_image",
-    description: "Edit a single image using a text description. Size 16x16 to 400x400.",
+    description: "Edit a single image globally using a text description (e.g. 'add a hat', 'change colors'). 16-400px. For editing a specific REGION use inpaint_v3 with a mask instead. For batch-editing multiple images at once use edit_images.",
     inputSchema: {
       type: "object",
       properties: {
@@ -681,7 +681,7 @@ export const tools: ToolDef[] = [
   {
     name: "create_tileset",
     description:
-      "Create a top-down tileset with base terrain, elevated terrain, and transitions. Tile size 16x16 or 32x32.",
+      "Create a TOP-DOWN tileset with base terrain, elevated terrain, and transitions (16x16 or 32x32 tiles). Outputs 16-23 seamless tiles. Use this for RPG/strategy maps. For platformer/sidescroller games use create_tileset_sidescroller. For isometric games use create_isometric_tile or create_tiles_pro.",
     inputSchema: {
       type: "object",
       properties: {
@@ -728,7 +728,7 @@ export const tools: ToolDef[] = [
   {
     name: "create_tileset_sidescroller",
     description:
-      "Create a sidescroller/platformer tileset with terrain and transitions.",
+      "Create a SIDESCROLLER/PLATFORMER tileset with terrain and transitions (16x16 or 32x32 tiles). Side-view perspective only. Use this for platformer games. For top-down RPG maps use create_tileset instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -754,7 +754,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "create_isometric_tile",
-    description: "Create an isometric tile. Size 16x16 to 64x64.",
+    description: "Create an isometric tile. Size 16x16 to 64x64 (best quality >24px). For other tile types (hex, octagon, square_topdown) use create_tiles_pro instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -794,7 +794,7 @@ export const tools: ToolDef[] = [
   {
     name: "create_tiles_pro",
     description:
-      "Create professional tiles. Types: hex, hex_pointy, isometric, octagon, square_topdown. Size 16-128px.",
+      "Create professional tiles. Types: hex, hex_pointy, isometric, octagon, square_topdown. Size 16-128px (32px recommended).",
     inputSchema: {
       type: "object",
       properties: {
@@ -804,9 +804,9 @@ export const tools: ToolDef[] = [
           enum: ["hex", "hex_pointy", "isometric", "octagon", "square_topdown"],
           description: "Type of tile",
         },
-        tile_size: { type: "integer", description: "Tile size in pixels (16-256, default 32)" },
+        tile_size: { type: "integer", description: "Tile size in pixels (16-128, default 32)", minimum: 16, maximum: 128 },
         n_tiles: { type: "number", description: "Number of tiles to generate" },
-        tile_height: { type: "number", description: "Tile height in pixels (16-256)" },
+        tile_height: { type: "number", description: "Tile height in pixels (16-128)", minimum: 16, maximum: 128 },
         tile_view: {
           type: "string",
           enum: ["top-down", "high top-down", "low top-down", "side"],
@@ -840,7 +840,7 @@ export const tools: ToolDef[] = [
   {
     name: "create_map_object",
     description:
-      "Generate a map object with transparent background for game use.",
+      "Generate a single-view map object (tree, rock, chest, etc.) with transparent background. Use this for environment/prop assets that don't need multiple directions. For objects with 4 directional views use create_object_4dir. For characters use create_character_4dir/8dir.",
     inputSchema: {
       type: "object",
       properties: {
@@ -865,7 +865,7 @@ export const tools: ToolDef[] = [
   {
     name: "create_character_4dir",
     description:
-      "Create a persistent character with 4 directional views (N/S/E/W). Size 32x32 to 168x168.",
+      "Create a PERSISTENT game character with 4 directional views (N/S/E/W). 32-168px. Returns a character_id that can be reused with animate_character for animations. Use this for game characters that need multiple directions and animations. For 8 directions use create_character_8dir. For one-off sprites without persistence use generate_image.",
     inputSchema: {
       type: "object",
       properties: {
@@ -889,7 +889,7 @@ export const tools: ToolDef[] = [
   {
     name: "create_character_8dir",
     description:
-      "Create a persistent character with 8 directional views (N/NE/E/SE/S/SW/W/NW). Size 32x32 to 168x168.",
+      "Create a PERSISTENT game character with 8 directional views (N/NE/E/SE/S/SW/W/NW). 32-168px. Returns a character_id for use with animate_character. Use this for top-down or isometric games needing diagonal directions. For 4-direction games use create_character_4dir.",
     inputSchema: {
       type: "object",
       properties: {
@@ -913,7 +913,7 @@ export const tools: ToolDef[] = [
   {
     name: "animate_character",
     description:
-      "Animate an existing character by ID with a specific animation template.",
+      "Animate a SAVED character by ID using a preset animation template (walk, run, attack, etc). Requires a character_id from create_character_4dir/8dir. Uses the character's existing size. If you only have an image (not a saved character), use animate_with_text_v2 instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1036,7 +1036,7 @@ export const tools: ToolDef[] = [
   // ═══════ OBJECTS ═══════
   {
     name: "create_object_4dir",
-    description: "Create an object with 4 directional views.",
+    description: "Create a persistent non-character object with 4 directional views (N/S/E/W). Use for furniture, vehicles, or props that the camera rotates around. For single-view props use create_map_object. For characters use create_character_4dir/8dir.",
     inputSchema: {
       type: "object",
       properties: {
