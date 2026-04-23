@@ -52,7 +52,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   // We iterate values (not the top-level dict) so plain file_path params like read_image's are unaffected.
   const rawArgs = request.params.arguments ?? {};
   const args: Record<string, unknown> = Object.fromEntries(
-    Object.entries(rawArgs).map(([k, v]) => [k, resolveImageArg(v)])
+    await Promise.all(
+      Object.entries(rawArgs).map(async ([k, v]) => [k, await resolveImageArg(v)] as const)
+    )
   );
   const tool = toolMap.get(name);
 
