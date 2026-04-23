@@ -17,20 +17,13 @@ export interface ToolDef {
 function imageSchema(description: string) {
   return {
     type: "object" as const,
-    description:
-      `${description}. ` +
-      "PREFERRED: set file_path to an absolute path to a PNG on disk — the server loads it automatically, keeping base64 out of context. " +
-      "FALLBACK: set base64 directly only when you already have the raw data in context (e.g. from read_image).",
+    description,
     properties: {
-      file_path: {
-        type: "string",
-        description: "Absolute path to a PNG file on disk (preferred — avoids large base64 data in context)",
-      },
       type: { type: "string", const: "base64", default: "base64", description: "Image data type (always \"base64\")" },
-      base64: { type: "string", description: "Base64-encoded PNG image data (manual fallback; prefer file_path)" },
+      base64: { type: "string", description: "Base64-encoded PNG image data" },
       format: { type: "string", default: "png", description: "Image format (default \"png\")" },
     },
-    required: [] as string[],
+    required: ["base64"],
   };
 }
 
@@ -1206,11 +1199,9 @@ export const tools: ToolDef[] = [
   {
     name: "read_image",
     description:
-      "FALLBACK ONLY — most tools now accept file_path directly inside their image parameters, " +
-      "which is far more token-efficient. Use read_image only when you need to inspect the raw " +
-      "base64 data, or when a specific image parameter does not yet support file_path. " +
-      "Reads a PNG from disk and returns a Base64Image object you can pass as the base64 field " +
-      "of any image parameter.",
+      "Read a previously saved image from disk and return it as a Base64Image object " +
+      "that can be passed directly to other tools (e.g. edit_image, remove_background, " +
+      "image_to_pixelart). Use the file paths shown in earlier tool responses.",
     inputSchema: {
       type: "object",
       properties: {

@@ -9,7 +9,7 @@ import {
   GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { PixelLabClient } from "./api-client.js";
-import { tools, resolveImageArg } from "./tools.js";
+import { tools } from "./tools.js";
 import { prompts } from "./prompts.js";
 import { extractAndSaveImages } from "./save-images.js";
 import { getJobEndpoint, getJobDescription } from "./job-log.js";
