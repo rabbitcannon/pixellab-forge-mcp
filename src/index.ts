@@ -9,7 +9,7 @@ import {
   GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { PixelLabClient } from "./api-client.js";
-import { tools } from "./tools.js";
+import { tools, resolveImageArg } from "./tools.js";
 import { prompts } from "./prompts.js";
 import { extractAndSaveImages } from "./save-images.js";
 import { getJobEndpoint, getJobDescription } from "./job-log.js";
@@ -48,7 +48,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name } = request.params;
-  const args = request.params.arguments ?? {};
+  // Resolve file_path inside image parameters so tools never receive large base64 blobs.
+  // We iterate values (not the top-level dict) so plain file_path params like read_image's are unaffected.
+  const rawArgs = request.params.arguments ?? {};
+  const args: Record<string, unknown> = Object.fromEntries(
+    Object.entries(rawArgs).map(([k, v]) => [k, resolveImageArg(v)])
+  );
   const tool = toolMap.get(name);
 
   if (!tool) {
