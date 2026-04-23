@@ -1,7 +1,8 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve, join } from "node:path";
 import type { PixelLabClient } from "./api-client.js";
 import { getPendingJobs, getJobLog } from "./job-log.js";
+import { OUTPUT_DIR, ensureOutputDir } from "./save-images.js";
 
 export interface ToolDef {
   name: string;
@@ -1003,7 +1004,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "download_character_zip",
-    description: "Download a character as a ZIP file with all sprites and metadata.",
+    description: "Download a character as a ZIP file. Saves to the pixellab-forge-output directory and returns the file path.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1011,8 +1012,14 @@ export const tools: ToolDef[] = [
       },
       required: ["character_id"],
     },
-    handler: async (client, args) =>
-      client.get(`/characters/${args.character_id}/zip`),
+    handler: async (client, args) => {
+      const { data } = await client.getBinary(`/characters/${args.character_id}/zip`);
+      const buf = Buffer.from(data, "base64");
+      ensureOutputDir();
+      const filePath = join(OUTPUT_DIR, `character_${args.character_id}_${Date.now()}.zip`);
+      writeFileSync(filePath, buf);
+      return { success: true, file_path: filePath, size_bytes: buf.length };
+    },
   },
   {
     name: "update_character_tags",

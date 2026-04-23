@@ -32,6 +32,24 @@ export class PixelLabClient {
     return res.json();
   }
 
+  async getBinary(path: string): Promise<{ data: string; mimeType: string; filename?: string }> {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      method: "GET",
+      headers: this.headers(),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`GET ${path} failed (${res.status}): ${text}`);
+    }
+    const mimeType = res.headers.get("content-type") ?? "application/octet-stream";
+    const disposition = res.headers.get("content-disposition") ?? "";
+    const filenameMatch = disposition.match(/filename[^;=\n]*=["']?([^"';\n]+)/i);
+    const filename = filenameMatch ? filenameMatch[1].trim() : undefined;
+    const buf = await res.arrayBuffer();
+    const data = Buffer.from(buf).toString("base64");
+    return { data, mimeType, filename };
+  }
+
   async delete(path: string): Promise<unknown> {
     const res = await fetch(`${BASE_URL}${path}`, {
       method: "DELETE",

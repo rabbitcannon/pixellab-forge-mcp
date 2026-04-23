@@ -2,9 +2,9 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 
-const OUTPUT_DIR = join(process.cwd(), "pixellab-forge-output");
+export const OUTPUT_DIR = join(process.cwd(), "pixellab-forge-output");
 
-function ensureOutputDir() {
+export function ensureOutputDir() {
   mkdirSync(OUTPUT_DIR, { recursive: true });
 }
 
@@ -198,6 +198,18 @@ export function extractAndSaveImages(
         const b64 = cleanBase64(img);
         addImage(b64, toolName, i);
         (data.images as any[])[i] = "[base64 image data stripped]";
+      }
+    });
+  }
+
+  // Quantized images: { quantized_images: [{ type: "base64", base64: "..." }, ...] }
+  if (Array.isArray(data.quantized_images)) {
+    data.quantized_images.forEach((img: unknown, i: number) => {
+      if (isImageObj(img)) {
+        const b64 = cleanBase64((img as any).base64);
+        const { w, h } = getDims(img);
+        addImage(b64, `${toolName}_quantized`, i, w, h);
+        stripBase64(img);
       }
     });
   }
