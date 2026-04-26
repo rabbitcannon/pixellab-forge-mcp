@@ -6,3 +6,4 @@ dist/
 *.tgz
 debug.log
 CLAUDE.md
+.claude/settings.local.json
