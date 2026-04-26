@@ -1,7 +1,9 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { resolve, join, basename } from "node:path";
 import type { PixelLabClient } from "./api-client.js";
 import { getPendingJobs, getJobLog } from "./job-log.js";
+import { OUTPUT_DIR, ensureOutputDir } from "./save-images.js";
 
 export interface ToolDef {
   name: string;
@@ -23,6 +25,51 @@ function imageSchema(description: string) {
     },
     required: ["base64"],
   };
+}
+
+/**
+ * Recursively walks a tool-argument value and resolves any image object that
+ * carries a file_path (but no base64) into a full { type, base64, format }
+ * object — so tools never need to handle file I/O themselves.
+ *
+ * Only called on argument *values*, never on the top-level args dict, so
+ * top-level file_path params (e.g. read_image) are unaffected.
+ */
+const ALLOWED_ROOTS = [resolve(OUTPUT_DIR), resolve(process.cwd())];
+
+export async function resolveImageArg(val: unknown): Promise<unknown> {
+  if (typeof val !== "object" || val === null) return val;
+  if (Array.isArray(val)) return Promise.all(val.map(resolveImageArg));
+
+  const obj = val as Record<string, unknown>;
+
+  if (typeof obj.file_path === "string" && !obj.base64) {
+    const filePath = resolve(obj.file_path);
+    const allowed = ALLOWED_ROOTS.some(
+      (root) => filePath === root || filePath.startsWith(root + "/") || filePath.startsWith(root + "\\")
+    );
+    if (!allowed) {
+      throw new Error(
+        `file_path "${obj.file_path}" is outside allowed directories (OUTPUT_DIR or workspace root)`
+      );
+    }
+    const data = await readFile(filePath);
+    return { type: "base64", base64: data.toString("base64"), format: obj.format ?? "png" };
+  }
+
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    out[k] = await resolveImageArg(v);
+  }
+  return out;
+}
+
+function validateId(val: unknown, label: string): string {
+  const id = String(val);
+  if (!/^[a-zA-Z0-9_-]{1,200}$/.test(id)) {
+    throw new Error(`Invalid ${label}: must contain only letters, numbers, hyphens, or underscores`);
+  }
+  return id;
 }
 
 function frameImageSchema(description: string) {
@@ -985,8 +1032,10 @@ export const tools: ToolDef[] = [
       },
       required: ["character_id"],
     },
-    handler: async (client, args) =>
-      client.get(`/characters/${args.character_id}`),
+    handler: async (client, args) => {
+      const characterId = validateId(args.character_id, "character_id");
+      return client.get(`/characters/${encodeURIComponent(characterId)}`);
+    },
   },
   {
     name: "delete_character",
@@ -998,12 +1047,14 @@ export const tools: ToolDef[] = [
       },
       required: ["character_id"],
     },
-    handler: async (client, args) =>
-      client.delete(`/characters/${args.character_id}`),
+    handler: async (client, args) => {
+      const characterId = validateId(args.character_id, "character_id");
+      return client.delete(`/characters/${encodeURIComponent(characterId)}`);
+    },
   },
   {
     name: "download_character_zip",
-    description: "Download a character as a ZIP file with all sprites and metadata.",
+    description: "Download a character as a ZIP file. Saves to the pixellab-forge-output directory and returns the file path.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1011,8 +1062,27 @@ export const tools: ToolDef[] = [
       },
       required: ["character_id"],
     },
-    handler: async (client, args) =>
-      client.get(`/characters/${args.character_id}/zip`),
+    handler: async (client, args) => {
+      const characterId = validateId(args.character_id, "character_id");
+      const { data, filename } = await client.getBinary(`/characters/${encodeURIComponent(characterId)}/zip`);
+      const buf = Buffer.from(data, "base64");
+      ensureOutputDir();
+      let baseName: string;
+      if (filename) {
+        const stripped = basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+        baseName = stripped && stripped !== "." && stripped !== ".."
+          ? stripped
+          : `character_${characterId}_${Date.now()}.zip`;
+      } else {
+        baseName = `character_${characterId}_${Date.now()}.zip`;
+      }
+      const filePath = resolve(join(OUTPUT_DIR, baseName));
+      if (!filePath.startsWith(resolve(OUTPUT_DIR))) {
+        throw new Error("Resolved output path escapes OUTPUT_DIR");
+      }
+      writeFileSync(filePath, buf);
+      return { success: true, file_path: filePath, size_bytes: buf.length };
+    },
   },
   {
     name: "update_character_tags",
@@ -1029,8 +1099,10 @@ export const tools: ToolDef[] = [
       },
       required: ["character_id", "tags"],
     },
-    handler: async (client, args) =>
-      client.patch(`/characters/${args.character_id}/tags`, { tags: args.tags }),
+    handler: async (client, args) => {
+      const characterId = validateId(args.character_id, "character_id");
+      return client.patch(`/characters/${encodeURIComponent(characterId)}/tags`, { tags: args.tags });
+    },
   },
 
   // ═══════ OBJECTS ═══════
@@ -1082,8 +1154,10 @@ export const tools: ToolDef[] = [
       },
       required: ["object_id"],
     },
-    handler: async (client, args) =>
-      client.get(`/objects/${args.object_id}`),
+    handler: async (client, args) => {
+      const objectId = validateId(args.object_id, "object_id");
+      return client.get(`/objects/${encodeURIComponent(objectId)}`);
+    },
   },
   {
     name: "delete_object",
@@ -1095,8 +1169,10 @@ export const tools: ToolDef[] = [
       },
       required: ["object_id"],
     },
-    handler: async (client, args) =>
-      client.delete(`/objects/${args.object_id}`),
+    handler: async (client, args) => {
+      const objectId = validateId(args.object_id, "object_id");
+      return client.delete(`/objects/${encodeURIComponent(objectId)}`);
+    },
   },
   {
     name: "update_object_tags",
@@ -1113,8 +1189,10 @@ export const tools: ToolDef[] = [
       },
       required: ["object_id", "tags"],
     },
-    handler: async (client, args) =>
-      client.patch(`/objects/${args.object_id}/tags`, { tags: args.tags }),
+    handler: async (client, args) => {
+      const objectId = validateId(args.object_id, "object_id");
+      return client.patch(`/objects/${encodeURIComponent(objectId)}/tags`, { tags: args.tags });
+    },
   },
 
   // ═══════ UTILITY ═══════

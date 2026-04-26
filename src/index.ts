@@ -48,7 +48,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name } = request.params;
-  const args = request.params.arguments ?? {};
+  // Resolve file_path inside image parameters so tools never receive large base64 blobs.
+  // We iterate values (not the top-level dict) so plain file_path params like read_image's are unaffected.
+  const rawArgs = request.params.arguments ?? {};
+  const args: Record<string, unknown> = Object.fromEntries(
+    await Promise.all(
+      Object.entries(rawArgs).map(async ([k, v]) => [k, await resolveImageArg(v)] as const)
+    )
+  );
   const tool = toolMap.get(name);
 
   if (!tool) {
