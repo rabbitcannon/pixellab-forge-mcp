@@ -40,7 +40,11 @@ npm test                # expect all tests passing
 npm publish --dry-run   # validate the tarball without publishing (no auth needed)
 ```
 
-### 3. Commit via a PR (main is protected)
+### 3. Update the changelog, then commit via a PR (main is protected)
+
+Add a `## [X.Y.Z] - YYYY-MM-DD` entry at the top of [CHANGELOG.md](CHANGELOG.md)
+(newest first), grouped under Added / Changed / Fixed / Security, and add the
+matching link reference at the bottom of the file.
 
 ```bash
 git checkout -b release/vX.Y.Z
