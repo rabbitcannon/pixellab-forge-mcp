@@ -82,7 +82,7 @@ Add this to your `.gitignore`:
 pixellab-forge-output/
 ```
 
-## Available Tools (47)
+## Available Tools (66)
 
 Generation tools automatically poll for results — no manual job status checking needed. If a job takes longer than 10 minutes or the connection drops, use `list_pending_jobs` to find the job ID and `get_job_status` to retrieve the result.
 
@@ -93,17 +93,28 @@ Generation tools automatically poll for results — no manual job status checkin
 | `generate_image` | Generate pixel art from text | `reference_images`, `style_image`, `style_options`, `no_background`, `seed` |
 | `generate_with_style` | Match style from 1-4 references | `style_images`, `style_description`, `no_background`, `seed` |
 | `generate_ui` | Game UI elements (buttons, panels, icons) | `concept_image`, `color_palette`, `no_background`, `seed` |
+| `create_image_pixen` | Pixen engine (max area 512×512, dims ÷4) | `outline`, `detail`, `view`, `direction`, `no_background`, `enhance_prompt`, `seed` |
 | `create_image_pixflux` | Pixflux engine (32-400px) | `text_guidance_scale`, `init_image`, `color_image`, `no_background`, `isometric`, `outline/shading/detail`, `seed` |
+| `create_image_pixflux_background` | Pixflux engine tuned for backgrounds/scenes | Same as `create_image_pixflux` |
 | `create_image_bitforge` | Bitforge engine (max 200px) | `text_guidance_scale`, `style_image`, `inpainting_image`, `mask_image`, `color_image`, `skeleton_keypoints`, `outline/shading/detail`, `seed` |
 
 ### Characters & Objects
 
 | Tool | Description | Key Options |
 |------|-------------|-------------|
+| `create_character_v3` | Character via v3 model (32-256px, newest) | `reference_image` (rotate exact character) or text-only, `view`, `template_id`, `outline`, `detail`, `enhance_prompt`, `no_background`, `seed` |
+| `create_character_pro` | Character/object via Pro engine (32-168px) | `method` (style/concept/rotate), `concept_image`, `reference_image`, `style_description`, `view`, `template_id`, `no_background`, `seed` |
 | `create_character_4dir` | Character with N/S/E/W views | `proportions`, `view`, `text_guidance_scale`, `outline/shading/detail`, `color_image`, `force_colors`, `template_id`, `isometric`, `seed` |
 | `create_character_8dir` | Character with 8 directional views | Same as 4dir |
-| `animate_character` | Animate existing character | `template_animation_id` (walking, fireball, breathing-idle, etc. — [47 templates](docs/prompting-guide.md#animation-templates)), `action_description`, `directions`, `outline/shading/detail`, `seed` |
-| `create_object_4dir` | Object with 4 directional views | `view`, `text_guidance_scale`, `outline/shading/detail`, `color_image`, `force_colors`, `seed` |
+| `create_character_state` | New state/variant of a saved character | `character_id`, `edit_description`, `use_color_palette_from_reference`, `no_background`, `seed` |
+| `animate_character` | Animate saved character (template only) | `template_animation_id` (walking, fireball, breathing-idle, etc. — [47 templates](docs/prompting-guide.md#animation-templates)), `action_description`, `directions`, `outline/shading/detail`, `seed` |
+| `create_character_animation` | Animate saved character (template/v3/pro) | `character_id`, `mode`, `template_animation_id`, `action_description`, `frame_count`, `directions`, `seed` |
+| `create_object_1dir` | Object, single direction (32-256px) | `size`, `view` (top-down/sidescroller), `style_images`, `item_descriptions` |
+| `create_object_8dir` | Object with 8 directional views (32-256px) | `size`, `view`, `reference_image` (rotate exact) or `style_image` (new in style) |
+| `animate_object` | Animate a saved object | `object_id`, `mode` (v3/pro), `animation_description`, `directions`, `frame_count`, `custom_start_frame`, `end_frame`, `enhance_prompt` |
+| `create_object_state` | New state/variant of a saved object | `object_id`, `edit_description`, `seed` |
+| `select_object_frames` | Keep specific candidate frames as objects | `object_id`, `indices`, `common_tag` |
+| `dismiss_object_review` | Accept an object as-is (clear review) | `object_id` |
 | `list_characters` / `list_objects` | List with pagination | `limit`, `offset` |
 | `get_character` / `get_object` | Get details by ID | |
 | `delete_character` / `delete_object` | Delete by ID | |
@@ -128,6 +139,7 @@ Generation tools automatically poll for results — no manual job status checkin
 | Tool | Description | Key Options |
 |------|-------------|-------------|
 | `generate_8_rotations` | 8 directional views (32-168px) | `method` (rotate/style/concept), `view`, `style_description`, `no_background`, `seed` |
+| `generate_8_rotations_v3` | 8 rotations from one frame (v3) | `first_frame`, `no_background`, `seed` |
 | `rotate` | Rotate between views/directions | `from_view/to_view`, `from_direction/to_direction`, `view_change`, `direction_change`, `image_guidance_scale`, `isometric`, `seed` |
 
 ### Editing & Inpainting
@@ -144,6 +156,7 @@ Generation tools automatically poll for results — no manual job status checkin
 | Tool | Description | Key Options |
 |------|-------------|-------------|
 | `image_to_pixelart` | Convert photo to pixel art | `image`, `output_size` |
+| `image_to_pixelart_pro` | Convert photo to pixel art (Pro, auto-sizes) | `image`, `description`, `seed` |
 | `resize_image` | AI-powered pixel art resize | `reference_image`, `target_size`, `color_image` |
 | `remove_background` | Remove background (max 400px) | `background_removal_task`, `text_hint` |
 
@@ -156,12 +169,23 @@ Generation tools automatically poll for results — no manual job status checkin
 | `create_isometric_tile` | Isometric tile (16-64px) | `isometric_tile_shape` (block/thick/thin), `text_guidance_scale`, `outline/shading/detail`, `color_image`, `seed` |
 | `create_tiles_pro` | Pro tiles (hex, iso, octagon, square) | `tile_type`, `tile_size`, `tile_view`, `tile_depth_ratio`, `style_images`, `style_options`, `n_tiles`, `seed` |
 | `get_tileset` / `get_isometric_tile` / `get_tiles_pro` | Retrieve by ID | |
+| `list_tilesets` / `list_isometric_tiles` | List with pagination | `limit`, `offset` |
 
 ### Map Objects
 
 | Tool | Description | Key Options |
 |------|-------------|-------------|
 | `create_map_object` | Game-ready object | `view`, `outline/shading/detail`, `text_guidance_scale`, `background_image`, `inpainting`, `color_image`, `seed` |
+
+### Prompt Enhancement
+
+Expand a short description into a richer prompt. These return enhanced **text only** — they do not generate images.
+
+| Tool | Description | Key Options |
+|------|-------------|-------------|
+| `enhance_character_prompt` | Enrich a prompt for `create_character_v3` | `description`, `image_size`, `view`, `outline`, `detail` |
+| `enhance_animation_prompt` | Enrich a motion prompt for `animate_with_text_v3` | `first_frame`, `action`, `last_frame` |
+| `enhance_pixen_prompt` | Enrich a prompt for `create_image_pixen` | `description`, `image_size`, `outline`, `detail`, `view`, `direction`, `no_background` |
 
 ### Account & Jobs
 
@@ -171,6 +195,7 @@ Generation tools automatically poll for results — no manual job status checkin
 | `get_job_status` | Check a background job by ID |
 | `list_pending_jobs` | List jobs that haven't completed (for recovery after disconnection) |
 | `list_job_history` | Recent job history (auto-pruned after 24h) |
+| `read_image` | Load a saved PNG as a Base64 image to pass into other tools |
 
 ### Common Options
 
