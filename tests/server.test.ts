@@ -103,4 +103,14 @@ describe("MCP Server integration", () => {
 
     await server.close();
   });
+
+  it("derives the server version from package.json (not a hardcoded literal)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const indexSrc = readFileSync(resolve("src/index.ts"), "utf-8");
+    // Must not reintroduce a hardcoded version in the Server constructor.
+    expect(indexSrc).not.toMatch(/name: "pixellab-forge-mcp",\s*version: "/);
+    // Must read the version from package.json at runtime.
+    expect(indexSrc).toContain('"../package.json"');
+  });
 });

@@ -8,6 +8,7 @@ import {
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { readFileSync } from "node:fs";
 import { PixelLabClient } from "./api-client.js";
 import { tools, resolveImageArg } from "./tools.js";
 import { prompts } from "./prompts.js";
@@ -31,8 +32,13 @@ if (!apiKey) {
 
 const client = new PixelLabClient(apiKey);
 
+// Report the real package version (package.json sits one level up from dist/index.js).
+const { version } = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
+) as { version: string };
+
 const server = new Server(
-  { name: "pixellab-forge-mcp", version: "1.2.0" },
+  { name: "pixellab-forge-mcp", version },
   { capabilities: { tools: {}, prompts: {} } },
 );
 
