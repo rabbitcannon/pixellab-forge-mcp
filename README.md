@@ -13,6 +13,8 @@ Generated images are automatically saved to `./pixellab-forge-output/` in your p
 
 No installation needed. `npx` downloads and runs the package automatically on first use.
 
+> **Package registry:** `pixellab-forge-mcp` is published to the public [npm registry (npmjs.org)](https://www.npmjs.com/package/pixellab-forge-mcp) — that's what `npx`/`npm install` use. It is **not** distributed via GitHub Packages, so the repo's `/pkgs/npm/…` page will 404; that's expected.
+
 ### Claude Code (CLI)
 
 ```bash
