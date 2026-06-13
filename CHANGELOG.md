@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.3] - 2026-06-13
+
+### Fixed
+- The server now reports its real version from `package.json` in the MCP handshake
+  (`serverInfo.version`) instead of a hardcoded `1.2.0`, so clients and `claude mcp
+  list` show the actual running version.
+
 ## [1.4.2] - 2026-06-13
 
 ### Fixed
@@ -120,6 +127,7 @@ _Reimplements community ideas from #1 (credit: @ultimatefrisbie1). Tests: 78 →
   generation, characters/objects, animation, tilesets, editing, and rotation, with
   automatic job polling and a persistent job log for crash recovery.
 
+[1.4.3]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.4.3
 [1.4.2]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.4.2
 [1.4.1]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.4.1
 [1.4.0]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.4.0
