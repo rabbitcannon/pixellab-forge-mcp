@@ -300,6 +300,8 @@ Set `PIXELLAB_API_KEY` in the inspector's environment variables, connect, and te
 
 Contributions are welcome via pull requests.
 
+Maintainers: see [RELEASING.md](RELEASING.md) for the release process.
+
 ## License
 
 MIT
