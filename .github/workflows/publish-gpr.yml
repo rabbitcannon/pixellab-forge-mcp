@@ -1,0 +1,38 @@
+name: Publish to GitHub Packages
+
+# Mirrors each published release to GitHub Packages.
+#
+# GitHub Packages only accepts scoped names, so this publishes the package as
+# @rabbitcannon/pixellab-forge-mcp. The canonical public package remains the
+# unscoped `pixellab-forge-mcp` on npmjs.org (published separately). The name is
+# rewritten at build time only — package.json on the repo is left untouched.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish-gpr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+          scope: '@rabbitcannon'
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Scope package name for GitHub Packages
+        run: npm pkg set name=@rabbitcannon/pixellab-forge-mcp
+
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
