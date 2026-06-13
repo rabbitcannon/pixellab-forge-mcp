@@ -48,7 +48,7 @@ matching link reference at the bottom of the file.
 
 ```bash
 git checkout -b release/vX.Y.Z
-git add -A                      # note: CLAUDE.md is gitignored and stays untracked
+git add -A
 git commit -m "vX.Y.Z - <summary of changes>"
 git push -u origin release/vX.Y.Z
 gh pr create --base main --title "vX.Y.Z - <summary>" --body "<notes>"
