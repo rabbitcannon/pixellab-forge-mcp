@@ -4,13 +4,16 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { PixelLabClient } from "../src/api-client.js";
 
-const LOG_FILE = join(tmpdir(), "pixellab-forge", "jobs.json");
+// Isolate this file's job log from other test files that run in parallel.
+const LOG_DIR = join(tmpdir(), "pixellab-forge-test-api-client");
+const LOG_FILE = join(LOG_DIR, "jobs.json");
 
 describe("PixelLabClient", () => {
   let client: PixelLabClient;
   let stderrSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    process.env.PIXELLAB_JOB_LOG_DIR = LOG_DIR;
     vi.useFakeTimers();
     client = new PixelLabClient("test-api-key");
     stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
@@ -20,6 +23,7 @@ describe("PixelLabClient", () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     try { rmSync(LOG_FILE); } catch {}
+    delete process.env.PIXELLAB_JOB_LOG_DIR;
   });
 
   describe("GET requests", () => {

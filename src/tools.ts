@@ -62,6 +62,9 @@ const noBackground = { type: "boolean", description: "Generate with transparent 
 const textGuidanceScale = { type: "number", description: "How closely to follow the text (1.0-20.0, default 8)", minimum: 1, maximum: 20 };
 const forceColors = { type: "boolean", description: "Force use of colors from color_image (default false)" };
 const colorImage = imageSchema("Color palette reference image");
+const enhancePrompt = { type: "boolean", description: "Auto-expand the description into a richer prompt before generating (default false)", default: false };
+const pixenOutline = { type: "string", enum: ["single color black outline", "single color outline", "selective outline", "lineless"], description: "Outline style" };
+const detailEnum = { type: "string", enum: ["low detail", "medium detail", "highly detailed"], description: "Detail level (default 'highly detailed')" };
 
 const styleParams = {
   outline: { type: "string", description: "Outline style" },
@@ -275,6 +278,58 @@ export const tools: ToolDef[] = [
     },
     handler: async (client, args) => client.post("/create-image-bitforge", args),
   },
+  {
+    name: "create_image_pixen",
+    description:
+      "Generate pixel art using the Pixen engine. Width/height 16-768px each but max area 512x512, and both must be divisible by 4. Supports outline/detail style hints, view/direction, and optional prompt enhancement. A modern alternative to generate_image with finer outline/detail control.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Text description of the image to generate" },
+        image_size: sizeSchema("Width/height each 16-768, max area 512x512, both divisible by 4"),
+        outline: pixenOutline,
+        detail: detailEnum,
+        view: viewEnum,
+        direction: directionEnum,
+        no_background: { type: "boolean", description: "Generate with transparent background (default false)", default: false },
+        background_removal_task: {
+          type: "string",
+          enum: ["remove_simple_background", "remove_complex_background"],
+          description: "Background removal complexity (default remove_simple_background)",
+        },
+        seed,
+        enhance_prompt: enhancePrompt,
+      },
+      required: ["description", "image_size"],
+    },
+    handler: async (client, args) => client.post("/create-image-pixen", args),
+  },
+  {
+    name: "create_image_pixflux_background",
+    description:
+      "Generate a seamless/background image using the Pixflux engine. Same parameters as create_image_pixflux but tuned for backgrounds and environments rather than isolated sprites.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Background/scene description" },
+        image_size: sizeSchema("32x32 to 400x400"),
+        negative_description: negativeDescription,
+        text_guidance_scale: { type: "number", description: "How closely to follow text (1.0-20.0, default 8.0)" },
+        ...styleParams,
+        view: viewEnum,
+        direction: directionEnum,
+        isometric,
+        no_background: { type: "boolean", description: "Generate with transparent background (default false)", default: false },
+        coverage_percentage: coveragePercentage,
+        init_image: imageSchema("Starting image for img2img"),
+        init_image_strength: initImageStrength,
+        color_image: colorImage,
+        seed,
+      },
+      required: ["description", "image_size"],
+    },
+    handler: async (client, args) => client.post("/create-image-pixflux-background", args),
+  },
 
   // ═══════ IMAGE OPERATIONS ═══════
   {
@@ -293,6 +348,21 @@ export const tools: ToolDef[] = [
       required: ["image", "image_size", "output_size"],
     },
     handler: async (client, args) => client.post("/image-to-pixelart", args),
+  },
+  {
+    name: "image_to_pixelart_pro",
+    description:
+      "Convert a photograph or regular image into pixel art using the Pro engine. The model derives output size from the input — you only supply the source image and optional style instructions. Higher quality than image_to_pixelart but less manual size control.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        image: imageSchema("Source image to convert"),
+        description: { type: "string", description: "Optional extra style instructions" },
+        seed,
+      },
+      required: ["image"],
+    },
+    handler: async (client, args) => client.post("/image-to-pixelart-pro", args),
   },
   {
     name: "resize_image",
@@ -545,6 +615,21 @@ export const tools: ToolDef[] = [
     handler: async (client, args) => client.post("/generate-8-rotations-v2", args),
   },
   {
+    name: "generate_8_rotations_v3",
+    description:
+      "Generate 8 directional rotations from a single source frame using the v3 model. Simpler than generate_8_rotations — just provide one image and the model produces all 8 views. Does NOT create a persistent character; use create_character_8dir for that.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        first_frame: imageSchema("Source frame to rotate into 8 directions"),
+        no_background: { type: "boolean", description: "Remove background from generated frames" },
+        seed: { type: "number", description: "Seed for reproducible generation (0 for random, default 0)" },
+      },
+      required: ["first_frame"],
+    },
+    handler: async (client, args) => client.post("/generate-8-rotations-v3", args),
+  },
+  {
     name: "rotate",
     description:
       "Rotate a single character sprite from one view/direction to another. Fixed sizes only: 16, 32, 64, or 128px. For generating all 8 directions at once use generate_8_rotations or create_character_8dir instead.",
@@ -726,6 +811,24 @@ export const tools: ToolDef[] = [
       client.get(`/tilesets/${args.tileset_id}`),
   },
   {
+    name: "list_tilesets",
+    description: "List your previously created tilesets with pagination.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Results per page (1-100, default 50)" },
+        offset: { type: "number", description: "Pagination offset (default 0)" },
+      },
+    },
+    handler: async (client, args) => {
+      const params = new URLSearchParams();
+      if (args.limit) params.set("limit", String(args.limit));
+      if (args.offset) params.set("offset", String(args.offset));
+      const qs = params.toString();
+      return client.get(`/tilesets${qs ? `?${qs}` : ""}`);
+    },
+  },
+  {
     name: "create_tileset_sidescroller",
     description:
       "Create a SIDESCROLLER/PLATFORMER tileset with terrain and transitions (16x16 or 32x32 tiles). Side-view perspective only. Use this for platformer games. For top-down RPG maps use create_tileset instead.",
@@ -790,6 +893,24 @@ export const tools: ToolDef[] = [
     },
     handler: async (client, args) =>
       client.get(`/isometric-tiles/${args.tile_id}`),
+  },
+  {
+    name: "list_isometric_tiles",
+    description: "List your previously created isometric tiles with pagination.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Results per page (1-100, default 50)" },
+        offset: { type: "number", description: "Pagination offset (default 0)" },
+      },
+    },
+    handler: async (client, args) => {
+      const params = new URLSearchParams();
+      if (args.limit) params.set("limit", String(args.limit));
+      if (args.offset) params.set("offset", String(args.offset));
+      const qs = params.toString();
+      return client.get(`/isometric-tiles${qs ? `?${qs}` : ""}`);
+    },
   },
   {
     name: "create_tiles_pro",
@@ -958,6 +1079,99 @@ export const tools: ToolDef[] = [
       client.post("/animate-character", args),
   },
   {
+    name: "create_character_v3",
+    description:
+      "Create a character using the v3 model. Two modes: provide a south-facing reference_image to rotate that exact character, or omit it to generate from scratch via description. Output 32-256px (advisory in reference mode). Returns a character_id. The newest character generator — prefer over create_character_4dir/8dir for best quality.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Character description (used as prompt + display name)" },
+        reference_image: imageSchema("South-facing reference image; if provided, v3 rotates this exact character"),
+        image_size: sizeSchema("Output frame size, 32-256px (advisory in reference mode)", false),
+        view: { type: "string", enum: ["low top-down", "high top-down", "side"], description: "Camera view angle (default 'low top-down')" },
+        template_id: { type: "string", description: "Body type for skeleton reconstruction (default 'mannequin')" },
+        name: { type: "string", description: "Display name (defaults to first 50 chars of description)" },
+        outline: { type: "string", description: "Outline style hint for from-scratch mode (default 'single color black outline')" },
+        detail: { type: "string", description: "Detail level hint for from-scratch mode (default 'medium detail')" },
+        no_background: noBackground,
+        enhance_prompt: enhancePrompt,
+        seed,
+      },
+      required: ["description"],
+    },
+    handler: async (client, args) => client.post("/create-character-v3", args),
+  },
+  {
+    name: "create_character_pro",
+    description:
+      "Create a character or object using the Pro engine. Output 32-168px. Methods: create_with_style (text-driven, optional style reference_image), create_from_concept (from a concept_image up to 1024x1024), rotate_character. Returns a character_id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Description of the character or object to generate" },
+        image_size: sizeSchema("Output frame size (32-168px)"),
+        method: {
+          type: "string",
+          enum: ["create_with_style", "create_from_concept", "rotate_character"],
+          description: "How reference inputs are used (default 'create_with_style')",
+        },
+        view: { type: "string", enum: ["low top-down", "high top-down", "side"], description: "Camera view angle (default 'low top-down')" },
+        template_id: { type: "string", description: "Body type for skeleton reconstruction (default 'mannequin')" },
+        concept_image: imageSchema("Concept image (max 1024x1024) for method=create_from_concept"),
+        reference_image: imageSchema("Style reference image (max 168x168) for method=create_with_style"),
+        style_description: { type: "string", description: "Free-text style hint layered on top of the description (max 2000 chars)" },
+        no_background: noBackground,
+        seed,
+      },
+      required: ["description", "image_size"],
+    },
+    handler: async (client, args) => client.post("/create-character-pro", args),
+  },
+  {
+    name: "create_character_state",
+    description:
+      "Create a new state/variant of an existing character by editing it with a text description (e.g. 'wearing armor', 'damaged'). Requires a source character_id. Optionally snap the edit to the source character's color palette for visual consistency.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_id: { type: "string", description: "ID of the source character" },
+        edit_description: { type: "string", description: "How to edit the character to create the new state" },
+        use_color_palette_from_reference: { type: "boolean", description: "Snap edited rotations to the source character's existing color palette (default false)" },
+        no_background: noBackground,
+        seed,
+      },
+      required: ["character_id", "edit_description"],
+    },
+    handler: async (client, args) => client.post("/create-character-state", args),
+  },
+  {
+    name: "create_character_animation",
+    description:
+      "Animate a SAVED character by ID with flexible modes. mode='template' uses a skeleton-based template_animation_id; mode='v3' interpolates frames from a custom action_description (4-16 frames); mode='pro' is the pro animator. More flexible than animate_character, which is template-only. Requires a character_id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_id: { type: "string", description: "ID of existing character to animate" },
+        mode: { type: "string", enum: ["template", "v3", "pro"], description: "Animation mode: 'template' (skeleton from template_animation_id), 'v3' (custom action), 'pro'" },
+        template_animation_id: { type: "string", description: "Animation template ID (required for template mode, e.g. 'walking', 'attack')" },
+        action_description: { type: "string", description: "Action description (required for custom v3/pro animations, e.g. 'walking', 'jumping')" },
+        animation_name: { type: "string", description: "Name for this animation (defaults to action_description)" },
+        description: { type: "string", description: "Character description (uses character's original if omitted)" },
+        frame_count: { type: "integer", description: "Number of frames (4-16, must be even, default 8). v3 mode only", minimum: 4, maximum: 16 },
+        text_guidance_scale: textGuidanceScale,
+        directions: { type: "array", items: { type: "string" }, description: "Directions to animate (south, north, east, west, etc.), or omit for default" },
+        ...styleParams,
+        isometric: { type: "boolean", description: "Generate in isometric view (default false)" },
+        color_image: colorImage,
+        force_colors: forceColors,
+        enhance_prompt: enhancePrompt,
+        seed,
+      },
+      required: ["character_id"],
+    },
+    handler: async (client, args) => client.post("/characters/animations", args),
+  },
+  {
     name: "list_characters",
     description: "List your created characters with pagination.",
     inputSchema: {
@@ -1035,24 +1249,135 @@ export const tools: ToolDef[] = [
 
   // ═══════ OBJECTS ═══════
   {
-    name: "create_object_4dir",
-    description: "Create a persistent non-character object with 4 directional views (N/S/E/W). Use for furniture, vehicles, or props that the camera rotates around. For single-view props use create_map_object. For characters use create_character_4dir/8dir.",
+    name: "create_object_1dir",
+    description:
+      "Create a persistent single-direction object. Square size 32-256px (default 64). view 'top-down' or 'sidescroller'. Optionally pass style_images for visual reference. Larger sizes may yield multiple objects (use item_descriptions to label each). For an object rotatable to 8 directions use create_object_8dir. For single-view non-persistent props use create_map_object.",
     inputSchema: {
       type: "object",
       properties: {
         description: { type: "string", description: "Object description" },
-        image_size: sizeSchema("Object dimensions"),
-        view: viewEnum,
-        text_guidance_scale: textGuidanceScale,
-        color_image: imageSchema("Color reference image"),
-        force_colors: forceColors,
-        ...styleParams,
-        seed,
+        size: { type: "integer", description: "Square image size in pixels (32-256, default 64)", minimum: 32, maximum: 256 },
+        view: { type: "string", enum: ["top-down", "sidescroller"], description: "View (default 'top-down')" },
+        style_images: {
+          type: "array",
+          description: "Style reference images (PNG/JPEG base64, max 256x256 each)",
+          items: imageSchema("Style reference image"),
+        },
+        item_descriptions: {
+          type: "array",
+          items: { type: "string" },
+          description: "Per-object descriptions when the size produces multiple objects",
+        },
       },
-      required: ["description", "image_size"],
+      required: ["description"],
     },
     handler: async (client, args) =>
-      client.post("/create-object-with-4-directions", args),
+      client.post("/create-1-direction-object", args),
+  },
+  {
+    name: "create_object_8dir",
+    description:
+      "Create a persistent object with 8 directional views. Square size 32-256px (default 64). view 'low top-down', 'high top-down', or 'side'. Provide reference_image to rotate that exact object, OR style_image to generate a new object in that style (mutually exclusive). For a single-direction object use create_object_1dir.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Object description" },
+        size: { type: "integer", description: "Square image size in pixels (32-256, default 64)", minimum: 32, maximum: 256 },
+        view: { type: "string", enum: ["low top-down", "high top-down", "side"], description: "Camera angle (default 'low top-down')" },
+        reference_image: imageSchema("Reference image — generates 8 rotations of this exact object (mutually exclusive with style_image)"),
+        style_image: imageSchema("Style reference — generates a new object matching the description in this style (mutually exclusive with reference_image)"),
+      },
+      required: ["description"],
+    },
+    handler: async (client, args) =>
+      client.post("/create-8-direction-object", args),
+  },
+  {
+    name: "animate_object",
+    description:
+      "Animate a SAVED object by ID. mode='v3' (default, higher quality, supports custom_start_frame/end_frame interpolation) or 'pro'. Do NOT pass directions for 1-direction objects; for 8-direction objects pass the directions to animate. Requires an object_id from create_object_1dir/8dir.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        object_id: { type: "string", description: "ID of the object to animate" },
+        mode: { type: "string", enum: ["pro", "v3"], description: "Animation mode (default 'v3')" },
+        animation_description: { type: "string", description: "Describe the animation, e.g. 'walking cheerfully' (required for a new animation, max 1000 chars)" },
+        directions: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["south", "south-east", "east", "north-east", "north", "north-west", "west", "south-west"],
+          },
+          description: "Directions to animate (8-direction objects only; omit for 1-direction objects)",
+        },
+        animation_group_id: { type: "string", description: "For 8-direction objects: animation_group_id of an existing animation to add directions to" },
+        display_name: { type: "string", description: "Optional name for the animation" },
+        frame_count: { type: "integer", description: "Frames per direction" },
+        replace_existing: { type: "boolean", description: "Regenerate a direction already animated in this animation (default false)" },
+        custom_start_frame: imageSchema("Optional custom starting pose (v3 mode only)"),
+        end_frame: imageSchema("Optional target pose to interpolate toward (v3 mode only)"),
+        enhance_prompt: enhancePrompt,
+      },
+      required: ["object_id"],
+    },
+    handler: async (client, args) => {
+      const { object_id, ...body } = args;
+      return client.post(`/objects/${object_id}/animations`, body);
+    },
+  },
+  {
+    name: "create_object_state",
+    description:
+      "Create a new state/variant of an existing object by editing it with a text description (e.g. 'open chest', 'broken'). Requires a source object_id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        object_id: { type: "string", description: "ID of the source object" },
+        edit_description: { type: "string", description: "How to edit the object to create the new state" },
+        seed,
+      },
+      required: ["object_id", "edit_description"],
+    },
+    handler: async (client, args) => {
+      const { object_id, ...body } = args;
+      return client.post(`/objects/${object_id}/states`, body);
+    },
+  },
+  {
+    name: "select_object_frames",
+    description:
+      "From an object that generated multiple candidate frames, keep specific frames (by 0-based index) as completed individual objects. Optionally tag all newly-created objects.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        object_id: { type: "string", description: "ID of the object whose frames to select" },
+        indices: {
+          type: "array",
+          items: { type: "integer" },
+          description: "Frame indices (0-based) to keep as completed individual objects",
+        },
+        common_tag: { type: "string", description: "Optional tag applied to every newly-created object" },
+      },
+      required: ["object_id", "indices"],
+    },
+    handler: async (client, args) => {
+      const { object_id, ...body } = args;
+      return client.post(`/objects/${object_id}/select-frames`, body);
+    },
+  },
+  {
+    name: "dismiss_object_review",
+    description:
+      "Dismiss the review state on an object, accepting it as-is without selecting specific frames. Takes no body beyond the object_id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        object_id: { type: "string", description: "ID of the object to dismiss review for" },
+      },
+      required: ["object_id"],
+    },
+    handler: async (client, args) =>
+      client.post(`/objects/${args.object_id}/dismiss-review`, {}),
   },
   {
     name: "list_objects",
@@ -1115,6 +1440,59 @@ export const tools: ToolDef[] = [
     },
     handler: async (client, args) =>
       client.patch(`/objects/${args.object_id}/tags`, { tags: args.tags }),
+  },
+
+  // ═══════ PROMPT ENHANCEMENT ═══════
+  {
+    name: "enhance_character_prompt",
+    description:
+      "Expand a short character description into a richer, more detailed prompt for create_character_v3. Returns enhanced text — does not generate an image. Use this to preview/refine a prompt before generating.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Character description to enhance" },
+        image_size: sizeSchema("Output frame size, 32-256px (advisory)"),
+        view: { type: "string", enum: ["low top-down", "high top-down", "side"], description: "Camera view (default 'low top-down')" },
+        outline: { type: "string", description: "Outline style hint" },
+        detail: { type: "string", description: "Detail level hint" },
+      },
+      required: ["description", "image_size"],
+    },
+    handler: async (client, args) => client.post("/enhance-character-v3-prompt", args),
+  },
+  {
+    name: "enhance_animation_prompt",
+    description:
+      "Expand a short action description into a richer motion prompt for animate_with_text_v3. Provide the first frame (and optional last frame for interpolation). Returns enhanced text — does not generate frames.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        first_frame: imageSchema("Starting frame image"),
+        action: { type: "string", description: "Action description to enhance (e.g. 'walking', 'sword swing')" },
+        last_frame: imageSchema("Optional end frame; when provided the prompt describes the interpolated motion"),
+      },
+      required: ["first_frame", "action"],
+    },
+    handler: async (client, args) => client.post("/enhance-animation-v3-prompt", args),
+  },
+  {
+    name: "enhance_pixen_prompt",
+    description:
+      "Expand a short image description into a richer prompt for create_image_pixen. Returns enhanced text — does not generate an image.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Image description to enhance" },
+        image_size: sizeSchema("Width/height each 16-768, max area 512x512, both divisible by 4"),
+        outline: pixenOutline,
+        detail: detailEnum,
+        view: viewEnum,
+        direction: directionEnum,
+        no_background: { type: "boolean", description: "Enhanced description targets a plain background (default false)", default: false },
+      },
+      required: ["description", "image_size"],
+    },
+    handler: async (client, args) => client.post("/enhance-pixen-prompt", args),
   },
 
   // ═══════ UTILITY ═══════

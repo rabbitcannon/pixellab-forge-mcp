@@ -14,11 +14,13 @@ import {
   getJobDescription,
 } from "../src/job-log.js";
 
-const LOG_DIR = join(tmpdir(), "pixellab-forge");
+// Isolate this file's log from other test files that run in parallel.
+const LOG_DIR = join(tmpdir(), "pixellab-forge-test-job-log");
 const LOG_FILE = join(LOG_DIR, "jobs.json");
 
 describe("Job log", () => {
   beforeEach(() => {
+    process.env.PIXELLAB_JOB_LOG_DIR = LOG_DIR;
     // Clear the log file before each test
     try {
       rmSync(LOG_FILE);
@@ -33,6 +35,7 @@ describe("Job log", () => {
     } catch {
       // cleanup
     }
+    delete process.env.PIXELLAB_JOB_LOG_DIR;
   });
 
   it("starts with no jobs", () => {
