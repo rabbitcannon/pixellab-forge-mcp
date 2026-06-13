@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PixelLabClient } from "../src/api-client.js";
+import { PixelLabClient, stripBase64FromErrorText } from "../src/api-client.js";
 
 // Isolate this file's job log from other test files that run in parallel.
 const LOG_DIR = join(tmpdir(), "pixellab-forge-test-api-client");
@@ -116,5 +116,67 @@ describe("PixelLabClient", () => {
       const result = await client.delete("/characters/123");
       expect(result).toEqual({ success: true });
     });
+  });
+
+  describe("getBinary", () => {
+    it("returns base64 data, mime type, and filename from headers", async () => {
+      const zipBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3]); // "PK.." + payload
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Map([
+          ["content-type", "application/zip"],
+          ["content-disposition", 'attachment; filename="hero.zip"'],
+        ]),
+        arrayBuffer: () => Promise.resolve(zipBytes.buffer),
+      }));
+
+      const result = await client.getBinary("/characters/abc/zip");
+      expect(result.mimeType).toBe("application/zip");
+      expect(result.filename).toBe("hero.zip");
+      expect(Buffer.from(result.data, "base64")).toEqual(Buffer.from(zipBytes));
+    });
+
+    it("falls back to octet-stream and undefined filename when headers are absent", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Map(),
+        arrayBuffer: () => Promise.resolve(new Uint8Array([1, 2]).buffer),
+      }));
+
+      const result = await client.getBinary("/characters/abc/zip");
+      expect(result.mimeType).toBe("application/octet-stream");
+      expect(result.filename).toBeUndefined();
+    });
+
+    it("throws on non-ok response", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve("Not found"),
+      }));
+      await expect(client.getBinary("/characters/missing/zip")).rejects.toThrow("GET /characters/missing/zip failed (404)");
+    });
+  });
+});
+
+describe("stripBase64FromErrorText", () => {
+  it("strips long base64 fields from JSON error bodies", () => {
+    const blob = "A".repeat(400);
+    const out = stripBase64FromErrorText(JSON.stringify({ error: "bad", image: blob }));
+    const parsed = JSON.parse(out);
+    expect(parsed.error).toBe("bad");
+    expect(parsed.image).toBe("[image data stripped]");
+  });
+
+  it("strips long base64 runs from non-JSON text", () => {
+    const blob = "B".repeat(300);
+    const out = stripBase64FromErrorText(`Upload failed: ${blob} end`);
+    expect(out).toContain("[image data stripped]");
+    expect(out).not.toContain(blob);
+  });
+
+  it("leaves short strings untouched", () => {
+    const out = stripBase64FromErrorText(JSON.stringify({ message: "short error" }));
+    expect(JSON.parse(out).message).toBe("short error");
   });
 });

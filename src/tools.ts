@@ -1,13 +1,63 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { resolve, join, basename } from "node:path";
 import type { PixelLabClient } from "./api-client.js";
 import { getPendingJobs, getJobLog } from "./job-log.js";
+import { OUTPUT_DIR, ensureOutputDir } from "./save-images.js";
 
 export interface ToolDef {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
   handler: (client: PixelLabClient, args: Record<string, unknown>) => Promise<unknown>;
+}
+
+// Directories a file_path image argument is permitted to read from.
+const ALLOWED_ROOTS = [resolve(OUTPUT_DIR), resolve(process.cwd())];
+
+/**
+ * Recursively resolve any nested image object that carries a `file_path` (and no
+ * `base64`) into a full { type, base64, format } object, so callers can pass a
+ * saved file path instead of pasting a large base64 blob into an image argument.
+ *
+ * Only ever called on argument *values*, never the top-level args object, so a
+ * top-level `file_path` param (e.g. read_image's) is left untouched. Reads are
+ * confined to ALLOWED_ROOTS to prevent path traversal.
+ */
+export async function resolveImageArg(val: unknown): Promise<unknown> {
+  if (typeof val !== "object" || val === null) return val;
+  if (Array.isArray(val)) return Promise.all(val.map(resolveImageArg));
+
+  const obj = val as Record<string, unknown>;
+
+  if (typeof obj.file_path === "string" && !obj.base64) {
+    const filePath = resolve(obj.file_path);
+    const allowed = ALLOWED_ROOTS.some(
+      (root) => filePath === root || filePath.startsWith(root + "/") || filePath.startsWith(root + "\\"),
+    );
+    if (!allowed) {
+      throw new Error(
+        `file_path "${obj.file_path}" is outside allowed directories (OUTPUT_DIR or workspace root)`,
+      );
+    }
+    const data = await readFile(filePath);
+    return { type: "base64", base64: data.toString("base64"), format: obj.format ?? "png" };
+  }
+
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    out[k] = await resolveImageArg(v);
+  }
+  return out;
+}
+
+/** Validate a path-segment ID (character/object id) to prevent injection/traversal. */
+function validateId(val: unknown, label: string): string {
+  const id = String(val);
+  if (!/^[a-zA-Z0-9_-]{1,200}$/.test(id)) {
+    throw new Error(`Invalid ${label}: must contain only letters, numbers, hyphens, or underscores`);
+  }
+  return id;
 }
 
 // ── Schema helpers ──────────────────────────────────────────────────────
@@ -1199,8 +1249,10 @@ export const tools: ToolDef[] = [
       },
       required: ["character_id"],
     },
-    handler: async (client, args) =>
-      client.get(`/characters/${args.character_id}`),
+    handler: async (client, args) => {
+      const id = validateId(args.character_id, "character_id");
+      return client.get(`/characters/${encodeURIComponent(id)}`);
+    },
   },
   {
     name: "delete_character",
@@ -1212,12 +1264,14 @@ export const tools: ToolDef[] = [
       },
       required: ["character_id"],
     },
-    handler: async (client, args) =>
-      client.delete(`/characters/${args.character_id}`),
+    handler: async (client, args) => {
+      const id = validateId(args.character_id, "character_id");
+      return client.delete(`/characters/${encodeURIComponent(id)}`);
+    },
   },
   {
     name: "download_character_zip",
-    description: "Download a character as a ZIP file with all sprites and metadata.",
+    description: "Download a character as a ZIP file with all sprites and metadata. Saves it to the pixellab-forge-output directory and returns the file path.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1225,8 +1279,24 @@ export const tools: ToolDef[] = [
       },
       required: ["character_id"],
     },
-    handler: async (client, args) =>
-      client.get(`/characters/${args.character_id}/zip`),
+    handler: async (client, args) => {
+      const id = validateId(args.character_id, "character_id");
+      const { data, filename } = await client.getBinary(`/characters/${encodeURIComponent(id)}/zip`);
+      const buf = Buffer.from(data, "base64");
+      ensureOutputDir();
+      // Derive a safe filename, falling back to a generated name if the header is missing/unsafe.
+      let baseName = `character_${id}_${Date.now()}.zip`;
+      if (filename) {
+        const stripped = basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+        if (stripped && stripped !== "." && stripped !== "..") baseName = stripped;
+      }
+      const filePath = resolve(join(OUTPUT_DIR, baseName));
+      if (filePath !== resolve(OUTPUT_DIR) && !filePath.startsWith(resolve(OUTPUT_DIR) + "/") && !filePath.startsWith(resolve(OUTPUT_DIR) + "\\")) {
+        throw new Error("Resolved output path escapes OUTPUT_DIR");
+      }
+      writeFileSync(filePath, buf);
+      return { success: true, file_path: filePath, size_bytes: buf.length };
+    },
   },
   {
     name: "update_character_tags",
@@ -1243,8 +1313,10 @@ export const tools: ToolDef[] = [
       },
       required: ["character_id", "tags"],
     },
-    handler: async (client, args) =>
-      client.patch(`/characters/${args.character_id}/tags`, { tags: args.tags }),
+    handler: async (client, args) => {
+      const id = validateId(args.character_id, "character_id");
+      return client.patch(`/characters/${encodeURIComponent(id)}/tags`, { tags: args.tags });
+    },
   },
 
   // ═══════ OBJECTS ═══════
@@ -1322,7 +1394,8 @@ export const tools: ToolDef[] = [
     },
     handler: async (client, args) => {
       const { object_id, ...body } = args;
-      return client.post(`/objects/${object_id}/animations`, body);
+      const id = validateId(object_id, "object_id");
+      return client.post(`/objects/${encodeURIComponent(id)}/animations`, body);
     },
   },
   {
@@ -1340,7 +1413,8 @@ export const tools: ToolDef[] = [
     },
     handler: async (client, args) => {
       const { object_id, ...body } = args;
-      return client.post(`/objects/${object_id}/states`, body);
+      const id = validateId(object_id, "object_id");
+      return client.post(`/objects/${encodeURIComponent(id)}/states`, body);
     },
   },
   {
@@ -1362,7 +1436,8 @@ export const tools: ToolDef[] = [
     },
     handler: async (client, args) => {
       const { object_id, ...body } = args;
-      return client.post(`/objects/${object_id}/select-frames`, body);
+      const id = validateId(object_id, "object_id");
+      return client.post(`/objects/${encodeURIComponent(id)}/select-frames`, body);
     },
   },
   {
@@ -1376,8 +1451,10 @@ export const tools: ToolDef[] = [
       },
       required: ["object_id"],
     },
-    handler: async (client, args) =>
-      client.post(`/objects/${args.object_id}/dismiss-review`, {}),
+    handler: async (client, args) => {
+      const id = validateId(args.object_id, "object_id");
+      return client.post(`/objects/${encodeURIComponent(id)}/dismiss-review`, {});
+    },
   },
   {
     name: "list_objects",
@@ -1407,8 +1484,10 @@ export const tools: ToolDef[] = [
       },
       required: ["object_id"],
     },
-    handler: async (client, args) =>
-      client.get(`/objects/${args.object_id}`),
+    handler: async (client, args) => {
+      const id = validateId(args.object_id, "object_id");
+      return client.get(`/objects/${encodeURIComponent(id)}`);
+    },
   },
   {
     name: "delete_object",
@@ -1420,8 +1499,10 @@ export const tools: ToolDef[] = [
       },
       required: ["object_id"],
     },
-    handler: async (client, args) =>
-      client.delete(`/objects/${args.object_id}`),
+    handler: async (client, args) => {
+      const id = validateId(args.object_id, "object_id");
+      return client.delete(`/objects/${encodeURIComponent(id)}`);
+    },
   },
   {
     name: "update_object_tags",
@@ -1438,8 +1519,10 @@ export const tools: ToolDef[] = [
       },
       required: ["object_id", "tags"],
     },
-    handler: async (client, args) =>
-      client.patch(`/objects/${args.object_id}/tags`, { tags: args.tags }),
+    handler: async (client, args) => {
+      const id = validateId(args.object_id, "object_id");
+      return client.patch(`/objects/${encodeURIComponent(id)}/tags`, { tags: args.tags });
+    },
   },
 
   // ═══════ PROMPT ENHANCEMENT ═══════

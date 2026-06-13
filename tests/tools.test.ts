@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tools } from "../src/tools.js";
+import { tools, resolveImageArg } from "../src/tools.js";
 
 describe("Tool definitions", () => {
   it("registers all 66 tools", () => {
@@ -369,5 +369,107 @@ describe("Tool definitions", () => {
         expect(calls[1]).toBe(base);
       });
     }
+  });
+
+  describe("validateId on path-parameter handlers", () => {
+    // Every handler that interpolates an id into a URL path.
+    const idTools: Array<[string, string, string]> = [
+      ["get_character", "character_id", "/characters/"],
+      ["delete_character", "character_id", "/characters/"],
+      ["update_character_tags", "character_id", "/characters/"],
+      ["download_character_zip", "character_id", "/characters/"],
+      ["get_object", "object_id", "/objects/"],
+      ["delete_object", "object_id", "/objects/"],
+      ["update_object_tags", "object_id", "/objects/"],
+      ["animate_object", "object_id", "/objects/"],
+      ["create_object_state", "object_id", "/objects/"],
+      ["select_object_frames", "object_id", "/objects/"],
+      ["dismiss_object_review", "object_id", "/objects/"],
+    ];
+
+    for (const [name, idField] of idTools) {
+      it(`${name} rejects an id with path-traversal characters`, async () => {
+        const tool = tools.find((t) => t.name === name)!;
+        const mockClient = {
+          get: () => Promise.resolve({}),
+          delete: () => Promise.resolve({}),
+          patch: () => Promise.resolve({}),
+          post: () => Promise.resolve({}),
+          getBinary: () => Promise.resolve({ data: "", mimeType: "application/zip" }),
+        } as any;
+        await expect(
+          tool.handler(mockClient, { [idField]: "../../etc/passwd", indices: [0], edit_description: "x" }),
+        ).rejects.toThrow(/Invalid/);
+      });
+    }
+
+    it("get_character passes a valid id through (encoded)", async () => {
+      const tool = tools.find((t) => t.name === "get_character")!;
+      const calls: string[] = [];
+      const mockClient = { get: (p: string) => (calls.push(p), Promise.resolve({})) } as any;
+      await tool.handler(mockClient, { character_id: "abc-123_XYZ" });
+      expect(calls[0]).toBe("/characters/abc-123_XYZ");
+    });
+  });
+
+  describe("download_character_zip saves the ZIP to disk (binary, not JSON)", () => {
+    it("uses getBinary, writes a file, and returns its path", async () => {
+      const { rmSync, existsSync, readFileSync } = await import("node:fs");
+      const tool = tools.find((t) => t.name === "download_character_zip")!;
+      const zip = Buffer.from([0x50, 0x4b, 0x03, 0x04, 9, 9]);
+      let calledPath = "";
+      const mockClient = {
+        getBinary: (p: string) => {
+          calledPath = p;
+          return Promise.resolve({ data: zip.toString("base64"), mimeType: "application/zip", filename: "hero.zip" });
+        },
+      } as any;
+
+      const result = await tool.handler(mockClient, { character_id: "char1" }) as any;
+      try {
+        expect(calledPath).toBe("/characters/char1/zip");
+        expect(result.success).toBe(true);
+        expect(result.size_bytes).toBe(zip.length);
+        expect(result.file_path).toMatch(/pixellab-forge-output[\\/]hero\.zip$/);
+        expect(existsSync(result.file_path)).toBe(true);
+        expect(readFileSync(result.file_path)).toEqual(zip);
+      } finally {
+        try { rmSync(result.file_path); } catch {}
+      }
+    });
+  });
+
+  describe("resolveImageArg", () => {
+    it("resolves a nested image object's file_path into a base64 object", async () => {
+      const { writeFileSync, rmSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      const tmp = join(process.cwd(), "test_resolve_img_tmp.png");
+      writeFileSync(tmp, Buffer.from([1, 2, 3, 4]));
+      try {
+        const out = await resolveImageArg({ image: { file_path: tmp } }) as any;
+        expect(out.image.type).toBe("base64");
+        expect(out.image.format).toBe("png");
+        expect(Buffer.from(out.image.base64, "base64")).toEqual(Buffer.from([1, 2, 3, 4]));
+      } finally {
+        rmSync(tmp);
+      }
+    });
+
+    it("rejects a file_path outside the allowed roots", async () => {
+      await expect(
+        resolveImageArg({ image: { file_path: "/etc/passwd" } }),
+      ).rejects.toThrow(/outside allowed directories/);
+    });
+
+    it("leaves an image object that already has base64 untouched", async () => {
+      const input = { image: { type: "base64", base64: "QUJD", format: "png" } };
+      const out = await resolveImageArg(input) as any;
+      expect(out.image.base64).toBe("QUJD");
+    });
+
+    it("passes primitives through unchanged (e.g. read_image's top-level file_path string)", async () => {
+      expect(await resolveImageArg("some/path.png")).toBe("some/path.png");
+      expect(await resolveImageArg(42)).toBe(42);
+    });
   });
 });

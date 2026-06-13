@@ -6,6 +6,38 @@ function debugLog(msg: string) {
   process.stderr.write(`[pixellab-forge-mcp] ${msg}\n`);
 }
 
+/**
+ * Replace long base64 image blobs in error text with a placeholder so failures
+ * don't dump megabytes of image data into the model's context. Parses JSON when
+ * possible (recursing into fields), otherwise falls back to a regex sweep.
+ */
+export function stripBase64FromErrorText(text: string): string {
+  try {
+    const json = JSON.parse(text);
+    stripBase64Fields(json);
+    return JSON.stringify(json);
+  } catch {
+    return text.replace(/[A-Za-z0-9+/]{200,}={0,2}/g, "[image data stripped]");
+  }
+}
+
+function stripBase64Fields(val: unknown): void {
+  if (!val || typeof val !== "object") return;
+  if (Array.isArray(val)) {
+    val.forEach(stripBase64Fields);
+    return;
+  }
+  const obj = val as Record<string, unknown>;
+  for (const key of Object.keys(obj)) {
+    const v = obj[key];
+    if (typeof v === "string" && v.length > 200 && /^[A-Za-z0-9+/]/.test(v)) {
+      obj[key] = "[image data stripped]";
+    } else {
+      stripBase64Fields(v);
+    }
+  }
+}
+
 export class PixelLabClient {
   private apiKey: string;
 
@@ -27,9 +59,32 @@ export class PixelLabClient {
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`GET ${path} failed (${res.status}): ${text}`);
+      throw new Error(`GET ${path} failed (${res.status}): ${stripBase64FromErrorText(text)}`);
     }
     return res.json();
+  }
+
+  /**
+   * Fetch a binary response (e.g. a ZIP) and return it base64-encoded along with
+   * its content type and any filename from the Content-Disposition header.
+   * Use this for endpoints that return files rather than JSON.
+   */
+  async getBinary(path: string): Promise<{ data: string; mimeType: string; filename?: string }> {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      method: "GET",
+      headers: this.headers(),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`GET ${path} failed (${res.status}): ${stripBase64FromErrorText(text)}`);
+    }
+    const mimeType = res.headers.get("content-type") ?? "application/octet-stream";
+    const disposition = res.headers.get("content-disposition") ?? "";
+    const filenameMatch = disposition.match(/filename[^;=\n]*=["']?([^"';\n]+)/i);
+    const filename = filenameMatch ? filenameMatch[1].trim() : undefined;
+    const buf = await res.arrayBuffer();
+    const data = Buffer.from(buf).toString("base64");
+    return { data, mimeType, filename };
   }
 
   async delete(path: string): Promise<unknown> {
@@ -39,7 +94,7 @@ export class PixelLabClient {
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`DELETE ${path} failed (${res.status}): ${text}`);
+      throw new Error(`DELETE ${path} failed (${res.status}): ${stripBase64FromErrorText(text)}`);
     }
     if (res.status === 204) return { success: true };
     return res.json();
@@ -53,7 +108,7 @@ export class PixelLabClient {
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`PATCH ${path} failed (${res.status}): ${text}`);
+      throw new Error(`PATCH ${path} failed (${res.status}): ${stripBase64FromErrorText(text)}`);
     }
     return res.json();
   }
@@ -97,6 +152,6 @@ export class PixelLabClient {
 
     const text = await res.text();
     debugLog(`POST ${path} — ERROR ${res.status}: ${text}`);
-    throw new Error(`POST ${path} failed (${res.status}): ${text}`);
+    throw new Error(`POST ${path} failed (${res.status}): ${stripBase64FromErrorText(text)}`);
   }
 }

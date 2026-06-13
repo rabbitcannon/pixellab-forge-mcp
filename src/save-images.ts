@@ -2,9 +2,9 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 
-const OUTPUT_DIR = join(process.cwd(), "pixellab-forge-output");
+export const OUTPUT_DIR = join(process.cwd(), "pixellab-forge-output");
 
-function ensureOutputDir() {
+export function ensureOutputDir() {
   mkdirSync(OUTPUT_DIR, { recursive: true });
 }
 

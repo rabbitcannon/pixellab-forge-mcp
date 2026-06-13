@@ -76,6 +76,8 @@ Any MCP client that supports stdio transport can use PixelLab Forge. Set the com
 
 When a tool returns image data, PixelLab Forge automatically saves the images as PNGs to `./pixellab-forge-output/` in whatever directory the MCP server is running from (usually your project root).
 
+Image inputs can be passed by **`file_path`** instead of inline base64 — any image argument accepts `{ "file_path": "pixellab-forge-output/sprite.png" }`, which the server resolves from disk before calling the API (saves passing large base64 blobs through the model). Paths are restricted to the output directory and workspace root. The dedicated `read_image` tool remains available for loading an image explicitly.
+
 Add this to your `.gitignore`:
 
 ```
@@ -118,7 +120,7 @@ Generation tools automatically poll for results — no manual job status checkin
 | `list_characters` / `list_objects` | List with pagination | `limit`, `offset` |
 | `get_character` / `get_object` | Get details by ID | |
 | `delete_character` / `delete_object` | Delete by ID | |
-| `download_character_zip` | Export character as ZIP | |
+| `download_character_zip` | Export character as ZIP (saved to `pixellab-forge-output/`, returns file path) | |
 | `update_character_tags` / `update_object_tags` | Manage tags | |
 
 ### Animation
