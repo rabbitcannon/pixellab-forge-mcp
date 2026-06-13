@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { tools } from "../src/tools.js";
 
 describe("Tool definitions", () => {
-  it("registers all 48 tools", () => {
-    expect(tools.length).toBe(48);
+  it("registers all 66 tools", () => {
+    expect(tools.length).toBe(66);
   });
 
   it("every tool has a unique name", () => {
@@ -211,5 +211,163 @@ describe("Tool definitions", () => {
       expect(props).toContain("no_background");
       expect(props).not.toContain("inpainting_image_size");
     });
+  });
+
+  // Helper to fetch props for a tool by name
+  const propsOf = (name: string) =>
+    Object.keys(
+      tools.find((t) => t.name === name)!.inputSchema.properties as Record<string, unknown>,
+    );
+
+  describe("Object endpoints (fixed create_object_4dir)", () => {
+    it("does not register the non-existent create_object_4dir", () => {
+      expect(tools.find((t) => t.name === "create_object_4dir")).toBeUndefined();
+    });
+
+    it("registers create_object_1dir mapping to /create-1-direction-object", async () => {
+      const tool = tools.find((t) => t.name === "create_object_1dir")!;
+      expect(tool).toBeDefined();
+      const props = propsOf("create_object_1dir");
+      // Object endpoints use a single `size` int, not character-style image_size/text_guidance_scale
+      expect(props).toContain("size");
+      expect(props).toContain("style_images");
+      expect(props).not.toContain("image_size");
+      expect(props).not.toContain("text_guidance_scale");
+      expect(tool.inputSchema.required).toEqual(["description"]);
+
+      const calls: any[] = [];
+      await tool.handler({ post: (p: string, b: unknown) => (calls.push([p, b]), Promise.resolve({})) } as any, { description: "barrel" });
+      expect(calls[0][0]).toBe("/create-1-direction-object");
+    });
+
+    it("registers create_object_8dir mapping to /create-8-direction-object", async () => {
+      const tool = tools.find((t) => t.name === "create_object_8dir")!;
+      expect(tool).toBeDefined();
+      const props = propsOf("create_object_8dir");
+      expect(props).toContain("size");
+      expect(props).toContain("reference_image");
+      expect(props).toContain("style_image");
+      expect(props).not.toContain("image_size");
+
+      const calls: any[] = [];
+      await tool.handler({ post: (p: string, b: unknown) => (calls.push([p, b]), Promise.resolve({})) } as any, { description: "crate" });
+      expect(calls[0][0]).toBe("/create-8-direction-object");
+    });
+  });
+
+  describe("Path-parameter handlers strip the id from the body", () => {
+    const cases = [
+      { name: "animate_object", arg: "object_id", id: "obj-1", expectedPath: "/objects/obj-1/animations", extra: { animation_description: "walk" } },
+      { name: "create_object_state", arg: "object_id", id: "obj-2", expectedPath: "/objects/obj-2/states", extra: { edit_description: "open" } },
+      { name: "select_object_frames", arg: "object_id", id: "obj-3", expectedPath: "/objects/obj-3/select-frames", extra: { indices: [0, 1] } },
+    ];
+
+    for (const { name, arg, id, expectedPath, extra } of cases) {
+      it(`${name} posts to ${expectedPath} without ${arg} in body`, async () => {
+        const tool = tools.find((t) => t.name === name)!;
+        const calls: any[] = [];
+        const mockClient = { post: (p: string, b: unknown) => (calls.push([p, b]), Promise.resolve({ ok: true })) } as any;
+
+        await tool.handler(mockClient, { [arg]: id, ...extra });
+
+        expect(calls[0][0]).toBe(expectedPath);
+        expect(calls[0][1]).not.toHaveProperty(arg);
+        for (const key of Object.keys(extra)) {
+          expect(calls[0][1]).toHaveProperty(key);
+        }
+      });
+    }
+
+    it("dismiss_object_review posts to dismiss-review with an empty body", async () => {
+      const tool = tools.find((t) => t.name === "dismiss_object_review")!;
+      const calls: any[] = [];
+      const mockClient = { post: (p: string, b: unknown) => (calls.push([p, b]), Promise.resolve({})) } as any;
+
+      await tool.handler(mockClient, { object_id: "obj-9" });
+
+      expect(calls[0][0]).toBe("/objects/obj-9/dismiss-review");
+      expect(calls[0][1]).toEqual({});
+    });
+  });
+
+  describe("New v3/Pro generation endpoints", () => {
+    it("create_character_v3 only requires description and supports reference_image", () => {
+      const tool = tools.find((t) => t.name === "create_character_v3")!;
+      const props = propsOf("create_character_v3");
+      expect(props).toContain("reference_image");
+      expect(props).toContain("enhance_prompt");
+      expect(tool.inputSchema.required).toEqual(["description"]);
+    });
+
+    it("create_character_pro requires description and image_size", () => {
+      const tool = tools.find((t) => t.name === "create_character_pro")!;
+      expect(propsOf("create_character_pro")).toContain("method");
+      expect(tool.inputSchema.required).toEqual(["description", "image_size"]);
+    });
+
+    it("create_character_state requires character_id and edit_description", () => {
+      const tool = tools.find((t) => t.name === "create_character_state")!;
+      expect(tool.inputSchema.required).toEqual(["character_id", "edit_description"]);
+    });
+
+    it("create_character_animation supports template/v3/pro modes", () => {
+      const props = propsOf("create_character_animation");
+      expect(props).toContain("mode");
+      expect(props).toContain("template_animation_id");
+      expect(props).toContain("action_description");
+      expect(props).toContain("frame_count");
+    });
+
+    it("generate_8_rotations_v3 requires first_frame", () => {
+      const tool = tools.find((t) => t.name === "generate_8_rotations_v3")!;
+      expect(tool.inputSchema.required).toEqual(["first_frame"]);
+    });
+
+    it("image_to_pixelart_pro requires only image", () => {
+      const tool = tools.find((t) => t.name === "image_to_pixelart_pro")!;
+      expect(tool.inputSchema.required).toEqual(["image"]);
+    });
+
+    it("create_image_pixen uses outline/detail enums and enhance_prompt", () => {
+      const props = propsOf("create_image_pixen");
+      expect(props).toContain("outline");
+      expect(props).toContain("detail");
+      expect(props).toContain("enhance_prompt");
+    });
+  });
+
+  describe("Prompt enhancement endpoints", () => {
+    const enhancers = ["enhance_character_prompt", "enhance_animation_prompt", "enhance_pixen_prompt"];
+    for (const name of enhancers) {
+      it(`${name} is registered with a handler`, () => {
+        const tool = tools.find((t) => t.name === name)!;
+        expect(tool).toBeDefined();
+        expect(typeof tool.handler).toBe("function");
+      });
+    }
+
+    it("enhance_animation_prompt requires first_frame and action", () => {
+      const tool = tools.find((t) => t.name === "enhance_animation_prompt")!;
+      expect(tool.inputSchema.required).toEqual(["first_frame", "action"]);
+    });
+  });
+
+  describe("List endpoints build pagination query strings", () => {
+    for (const [name, base] of [
+      ["list_tilesets", "/tilesets"],
+      ["list_isometric_tiles", "/isometric-tiles"],
+    ] as const) {
+      it(`${name} appends limit/offset to ${base}`, async () => {
+        const tool = tools.find((t) => t.name === name)!;
+        const calls: string[] = [];
+        const mockClient = { get: (p: string) => (calls.push(p), Promise.resolve({})) } as any;
+
+        await tool.handler(mockClient, { limit: 10, offset: 5 });
+        expect(calls[0]).toBe(`${base}?limit=10&offset=5`);
+
+        await tool.handler(mockClient, {});
+        expect(calls[1]).toBe(base);
+      });
+    }
   });
 });

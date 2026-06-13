@@ -11,14 +11,22 @@ interface JobEntry {
   completed?: string;
 }
 
-const LOG_DIR = join(tmpdir(), "pixellab-forge");
-const LOG_FILE = join(LOG_DIR, "jobs.json");
 const MAX_ENTRIES = 200;
 const TTL_HOURS = 24;
 
+// Resolved lazily so tests (and callers) can override the location via
+// PIXELLAB_JOB_LOG_DIR — keeping parallel test files from racing on one shared file.
+function logDir(): string {
+  return process.env.PIXELLAB_JOB_LOG_DIR ?? join(tmpdir(), "pixellab-forge");
+}
+
+function logFile(): string {
+  return join(logDir(), "jobs.json");
+}
+
 function ensureDir() {
   try {
-    mkdirSync(LOG_DIR, { recursive: true });
+    mkdirSync(logDir(), { recursive: true });
   } catch {
     // already exists
   }
@@ -26,7 +34,7 @@ function ensureDir() {
 
 function readLog(): JobEntry[] {
   try {
-    return JSON.parse(readFileSync(LOG_FILE, "utf-8")) as JobEntry[];
+    return JSON.parse(readFileSync(logFile(), "utf-8")) as JobEntry[];
   } catch {
     return [];
   }
@@ -34,7 +42,7 @@ function readLog(): JobEntry[] {
 
 function writeLog(entries: JobEntry[]) {
   ensureDir();
-  writeFileSync(LOG_FILE, JSON.stringify(entries, null, 2));
+  writeFileSync(logFile(), JSON.stringify(entries, null, 2));
 }
 
 /** Remove completed jobs older than TTL and cap total entries */
