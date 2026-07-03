@@ -1525,6 +1525,146 @@ export const tools: ToolDef[] = [
     },
   },
 
+  // ═══════ UI ASSETS, FONTS & PORTRAITS (Pro) ═══════
+  {
+    name: "create_ui_asset",
+    description:
+      "Generate a shape-based pixel-art UI panel (Pro) from a text description — a persistent, saved UI asset (distinct from generate_ui, which is a one-shot generator). Returns a job_id and a ui_asset_id immediately; poll get_job_status or get_ui_asset until ready. Optionally scaffold the panel from named UI elements or a custom shape template.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Style description for the UI panel (e.g. 'wooden RPG panel with gold trim')" },
+        image_size: sizeSchema("Output size in pixels, 192–688 per axis (max per axis depends on aspect; default 256×256)", false),
+        elements: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["button", "icon_button", "toolbar", "tab", "panel", "window", "health_bar", "avatar", "triangle", "pentagon", "hexagon", "octagon"],
+          },
+          description: "Optional named UI element types to scaffold the panel from (auto-positioned, no coords needed). Combine with pieces for custom shapes; omit both for a default full-canvas panel.",
+        },
+        pieces: {
+          type: "array",
+          description:
+            "Optional custom shape template. Each piece needs a unique id, a kind, and an optional label. Coords are on a virtual canvas where the longer side spans 0–512 and the shorter side scales to the output aspect ratio. kinds: rounded_rect {x,y,w,h,radius}, circle {x,y,r}, polygon {x,y,r,sides,phase}.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "Unique piece ID" },
+              kind: { type: "string", enum: ["rounded_rect", "circle", "polygon"], description: "Shape kind" },
+              label: { type: "string", description: "Optional label" },
+              x: { type: "number" },
+              y: { type: "number" },
+              w: { type: "number", description: "Width (rounded_rect)" },
+              h: { type: "number", description: "Height (rounded_rect)" },
+              radius: { type: "number", description: "Corner radius (rounded_rect)" },
+              r: { type: "number", description: "Radius (circle/polygon)" },
+              sides: { type: "integer", description: "Number of sides (polygon)" },
+              phase: { type: "number", description: "Rotation phase (polygon)" },
+            },
+            required: ["id", "kind"],
+          },
+        },
+        style_image: imageSchema("Optional style reference image (PNG/JPEG)"),
+        color_palette: { type: "string", description: "Optional palette specification (e.g. 'brown and gold')" },
+        no_background: noBackground,
+        seed,
+        name: { type: "string", description: "Friendly name for the saved asset" },
+        project_id: { type: "string", description: "If set, assign the finished asset to this project" },
+      },
+      required: ["description"],
+    },
+    handler: async (client, args) => client.post("/create-ui-asset", args),
+  },
+  {
+    name: "list_ui_assets",
+    description: "List your saved UI panels (newest first), with pagination. Includes ghost rows for panels still generating.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Results per page" },
+        offset: { type: "number", description: "Pagination offset" },
+      },
+    },
+    handler: async (client, args) => {
+      const params = new URLSearchParams();
+      if (args.limit) params.set("limit", String(args.limit));
+      if (args.offset) params.set("offset", String(args.offset));
+      const qs = params.toString();
+      return client.get(`/ui-assets${qs ? `?${qs}` : ""}`);
+    },
+  },
+  {
+    name: "get_ui_asset",
+    description: "Get a UI panel's details by ID. Reports progress while the panel is still generating.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ui_asset_id: { type: "string", description: "UI asset ID" },
+      },
+      required: ["ui_asset_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.ui_asset_id, "ui_asset_id");
+      return client.get(`/ui-assets/${encodeURIComponent(id)}`);
+    },
+  },
+  {
+    name: "delete_ui_asset",
+    description: "Permanently delete a UI panel and its backing image files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ui_asset_id: { type: "string", description: "UI asset ID" },
+      },
+      required: ["ui_asset_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.ui_asset_id, "ui_asset_id");
+      return client.delete(`/ui-assets/${encodeURIComponent(id)}`);
+    },
+  },
+  {
+    name: "generate_font_pro",
+    description:
+      "Generate a styled pixel-art font (Pro) from a text description. Produces a glyph atlas plus a ready-to-use TrueType (.ttf) font. Returns a job_id immediately — poll get_job_status for the result.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Style description, e.g. 'warm orange arcade font'" },
+        weight: { type: "string", enum: ["Bold", "Regular"], description: "Stroke weight; guides glyph thickness" },
+        image_size: { type: "string", enum: ["1K", "2K"], description: "Generation resolution tier / pricing key (default '1K'). 1K costs fewer generations", default: "1K" },
+        glyph_px: { type: "integer", enum: [8, 16, 32, 64], description: "Native glyph resolution in pixels — the real bitmap size per glyph in the output (default 16)", default: 16 },
+        seed,
+        font_name: { type: "string", description: "Explicit font family name; defaults to '{description} {weight}'" },
+      },
+      required: ["description", "weight"],
+    },
+    handler: async (client, args) => client.post("/generate-font-pro", args),
+  },
+  {
+    name: "portrait_character_pro",
+    description:
+      "Convert between a bust portrait and a full-body character sprite (Pro). direction='portrait_to_character' takes a portrait in and returns a full-body sprite; 'character_to_portrait' does the reverse. Returns a job_id immediately — poll get_job_status for the result.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        direction: {
+          type: "string",
+          enum: ["portrait_to_character", "character_to_portrait"],
+          description: "Conversion direction (default 'portrait_to_character')",
+          default: "portrait_to_character",
+        },
+        image: imageSchema("Input image (a portrait or a character, matching direction)"),
+        view: { type: "string", enum: ["low top-down", "high top-down", "side"], description: "Camera angle of the character (default 'low top-down')" },
+        result_size: { type: "integer", enum: [16, 32, 48, 64, 128, 160], description: "Output sprite size in pixels (default 64). 128/160 render at 2K for extra detail and cost more" },
+        seed,
+      },
+      required: ["image"],
+    },
+    handler: async (client, args) => client.post("/portrait-character-pro", args),
+  },
+
   // ═══════ PROMPT ENHANCEMENT ═══════
   {
     name: "enhance_character_prompt",

@@ -93,6 +93,18 @@ describe("PixelLabClient", () => {
       expect(result.job_id).toBe("legacy-job");
     });
 
+    it("carries through resource ids (e.g. ui_asset_id) on 202", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+        status: 202,
+        json: () => Promise.resolve({ background_job_id: "job-9", ui_asset_id: "ui-42", status: "processing" }),
+      }));
+
+      const result = await client.post("/create-ui-asset", {}) as any;
+      expect(result.status).toBe("processing");
+      expect(result.job_id).toBe("job-9");
+      expect(result.ui_asset_id).toBe("ui-42");
+    });
+
     it("logs job ID to stderr on 202", async () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
         status: 202,
