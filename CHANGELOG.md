@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-07-02
+
+### Added
+- **6 new tools** covering the remaining Pro API endpoints (66 → 72):
+  - UI assets: `create_ui_asset`, `list_ui_assets`, `get_ui_asset`, `delete_ui_asset`
+    — the persistent shape-based UI panel workflow (distinct from the one-shot `generate_ui`).
+  - `generate_font_pro` — generate a styled pixel-art font (glyph atlas + `.ttf`).
+  - `portrait_character_pro` — convert between a bust portrait and a full-body character sprite.
+- Async `POST` responses now carry through any resource id the endpoint returns
+  alongside the job id (e.g. `create_ui_asset` echoes `ui_asset_id`), so callers can
+  reference the asset before the job finishes.
+
+### Changed
+- Bumped dev/runtime dependencies (`zod`, `@types/node`, `typescript`, `vitest`).
+
 ## [1.4.3] - 2026-06-13
 
 ### Fixed
@@ -127,6 +142,7 @@ _Reimplements community ideas from #1 (credit: @ultimatefrisbie1). Tests: 78 →
   generation, characters/objects, animation, tilesets, editing, and rotation, with
   automatic job polling and a persistent job log for crash recovery.
 
+[1.5.0]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.5.0
 [1.4.3]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.4.3
 [1.4.2]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.4.2
 [1.4.1]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.4.1

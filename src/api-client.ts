@@ -136,15 +136,24 @@ export class PixelLabClient {
     }
 
     if (res.status === 202) {
-      const data = (await res.json()) as { job_id?: string; background_job_id?: string };
-      const jobId = data.job_id ?? data.background_job_id;
+      const data = (await res.json()) as Record<string, unknown>;
+      const jobId = (data.job_id ?? data.background_job_id) as string | undefined;
       debugLog(`POST ${path} — background job: ${jobId}`);
       if (jobId) {
         logJobStart(jobId, path, desc);
       }
+      // Carry through any resource identifiers the endpoint returns alongside the
+      // job (e.g. ui_asset_id) so callers can reference the asset before it's ready.
+      const resourceIds: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (key !== "job_id" && key !== "background_job_id" && key.endsWith("_id")) {
+          resourceIds[key] = value;
+        }
+      }
       return {
         status: "processing",
         job_id: jobId,
+        ...resourceIds,
         endpoint: path,
         message: `Job ${jobId} is processing. Use get_job_status with this job_id to check progress and retrieve results.`,
       };

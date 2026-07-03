@@ -90,7 +90,7 @@ describe("MCP Server integration", () => {
 
     // Find tools/list response
     const toolsResponse = messages.find((m: any) => m.id === 2) as any;
-    expect(toolsResponse.result.tools).toHaveLength(66);
+    expect(toolsResponse.result.tools).toHaveLength(72);
 
     // Verify a few tool names
     const toolNames = toolsResponse.result.tools.map((t: any) => t.name);
@@ -100,6 +100,9 @@ describe("MCP Server integration", () => {
     expect(toolNames).toContain("create_character_v3");
     expect(toolNames).toContain("list_pending_jobs");
     expect(toolNames).toContain("get_balance");
+    expect(toolNames).toContain("create_ui_asset");
+    expect(toolNames).toContain("generate_font_pro");
+    expect(toolNames).toContain("portrait_character_pro");
 
     await server.close();
   });
