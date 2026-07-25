@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { tools, resolveImageArg } from "../src/tools.js";
 
 describe("Tool definitions", () => {
-  it("registers all 72 tools", () => {
-    expect(tools.length).toBe(72);
+  it("registers all 84 tools", () => {
+    expect(tools.length).toBe(84);
   });
 
   it("every tool has a unique name", () => {
@@ -356,6 +356,8 @@ describe("Tool definitions", () => {
     for (const [name, base] of [
       ["list_tilesets", "/tilesets"],
       ["list_isometric_tiles", "/isometric-tiles"],
+      ["list_tilesets_sidescroller", "/tilesets-sidescroller"],
+      ["list_tiles_pro", "/tiles-pro"],
     ] as const) {
       it(`${name} appends limit/offset to ${base}`, async () => {
         const tool = tools.find((t) => t.name === name)!;
@@ -385,6 +387,16 @@ describe("Tool definitions", () => {
       ["create_object_state", "object_id", "/objects/"],
       ["select_object_frames", "object_id", "/objects/"],
       ["dismiss_object_review", "object_id", "/objects/"],
+      ["delete_character_animations", "character_id", "/characters/"],
+      ["delete_object_animations", "object_id", "/objects/"],
+      ["delete_tileset", "tileset_id", "/tilesets/"],
+      ["get_tileset_sidescroller", "tileset_id", "/tilesets-sidescroller/"],
+      ["delete_tileset_sidescroller", "tileset_id", "/tilesets-sidescroller/"],
+      ["delete_isometric_tile", "tile_id", "/isometric-tiles/"],
+      ["delete_tiles_pro", "tile_id", "/tiles-pro/"],
+      ["get_map_object", "object_id", "/map-objects/"],
+      ["get_font_pro_job", "job_id", "/generate-font-pro/"],
+      ["get_portrait_character_pro_job", "job_id", "/portrait-character-pro/"],
     ];
 
     for (const [name, idField] of idTools) {
@@ -410,6 +422,59 @@ describe("Tool definitions", () => {
       await tool.handler(mockClient, { character_id: "abc-123_XYZ" });
       expect(calls[0]).toBe("/characters/abc-123_XYZ");
     });
+  });
+
+  describe("Newly added retrieval/cleanup endpoints hit the right paths", () => {
+    const cases: Array<[string, "get" | "delete", Record<string, unknown>, string]> = [
+      ["delete_tileset", "delete", { tileset_id: "t1" }, "/tilesets/t1"],
+      ["get_tileset_sidescroller", "get", { tileset_id: "s1" }, "/tilesets-sidescroller/s1"],
+      ["delete_tileset_sidescroller", "delete", { tileset_id: "s1" }, "/tilesets-sidescroller/s1"],
+      ["delete_isometric_tile", "delete", { tile_id: "i1" }, "/isometric-tiles/i1"],
+      ["delete_tiles_pro", "delete", { tile_id: "p1" }, "/tiles-pro/p1"],
+      ["get_map_object", "get", { object_id: "m1" }, "/map-objects/m1"],
+      ["get_font_pro_job", "get", { job_id: "j1" }, "/generate-font-pro/j1"],
+      ["get_portrait_character_pro_job", "get", { job_id: "j2" }, "/portrait-character-pro/j2"],
+    ];
+
+    for (const [name, method, args, expected] of cases) {
+      it(`${name} calls ${method.toUpperCase()} ${expected}`, async () => {
+        const tool = tools.find((t) => t.name === name)!;
+        const calls: string[] = [];
+        const mockClient = { [method]: (p: string) => (calls.push(p), Promise.resolve({})) } as any;
+        await tool.handler(mockClient, args);
+        expect(calls).toEqual([expected]);
+      });
+    }
+  });
+
+  describe("Animation deletion endpoints build optional filter query strings", () => {
+    for (const [name, idField, base] of [
+      ["delete_character_animations", "character_id", "/characters"],
+      ["delete_object_animations", "object_id", "/objects"],
+    ] as const) {
+      it(`${name} deletes all animations when no filters are given`, async () => {
+        const tool = tools.find((t) => t.name === name)!;
+        const calls: string[] = [];
+        const mockClient = { delete: (p: string) => (calls.push(p), Promise.resolve({})) } as any;
+        await tool.handler(mockClient, { [idField]: "abc" });
+        expect(calls[0]).toBe(`${base}/abc/animations`);
+      });
+
+      it(`${name} passes animation_type, animation_group_id and direction as query params`, async () => {
+        const tool = tools.find((t) => t.name === name)!;
+        const calls: string[] = [];
+        const mockClient = { delete: (p: string) => (calls.push(p), Promise.resolve({})) } as any;
+        await tool.handler(mockClient, {
+          [idField]: "abc",
+          animation_type: "walk",
+          animation_group_id: "grp-1",
+          direction: "south",
+        });
+        expect(calls[0]).toBe(
+          `${base}/abc/animations?animation_type=walk&animation_group_id=grp-1&direction=south`,
+        );
+      });
+    }
   });
 
   describe("download_character_zip saves the ZIP to disk (binary, not JSON)", () => {
