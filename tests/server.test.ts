@@ -90,7 +90,7 @@ describe("MCP Server integration", () => {
 
     // Find tools/list response
     const toolsResponse = messages.find((m: any) => m.id === 2) as any;
-    expect(toolsResponse.result.tools).toHaveLength(72);
+    expect(toolsResponse.result.tools).toHaveLength(84);
 
     // Verify a few tool names
     const toolNames = toolsResponse.result.tools.map((t: any) => t.name);

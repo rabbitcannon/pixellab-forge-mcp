@@ -120,6 +120,7 @@ Generation tools automatically poll for results — no manual job status checkin
 | `list_characters` / `list_objects` | List with pagination | `limit`, `offset` |
 | `get_character` / `get_object` | Get details by ID | |
 | `delete_character` / `delete_object` | Delete by ID | |
+| `delete_character_animations` / `delete_object_animations` | Delete animations (all, or scoped) | `animation_type`, `animation_group_id`, `direction` |
 | `download_character_zip` | Export character as ZIP (saved to `pixellab-forge-output/`, returns file path) | |
 | `update_character_tags` / `update_object_tags` | Manage tags | |
 
@@ -170,14 +171,16 @@ Generation tools automatically poll for results — no manual job status checkin
 | `create_tileset_sidescroller` | Platformer tileset | `lower_description`, `transition_description`, `text_guidance_scale`, `tile_strength`, `tileset_adherence`, `base_tile_id`, `seed` |
 | `create_isometric_tile` | Isometric tile (16-64px) | `isometric_tile_shape` (block/thick/thin), `text_guidance_scale`, `outline/shading/detail`, `color_image`, `seed` |
 | `create_tiles_pro` | Pro tiles (hex, iso, octagon, square) | `tile_type`, `tile_size`, `tile_view`, `tile_depth_ratio`, `style_images`, `style_options`, `n_tiles`, `seed` |
-| `get_tileset` / `get_isometric_tile` / `get_tiles_pro` | Retrieve by ID | |
-| `list_tilesets` / `list_isometric_tiles` | List with pagination | `limit`, `offset` |
+| `get_tileset` / `get_tileset_sidescroller` / `get_isometric_tile` / `get_tiles_pro` | Retrieve by ID | |
+| `list_tilesets` / `list_tilesets_sidescroller` / `list_isometric_tiles` / `list_tiles_pro` | List with pagination | `limit`, `offset` |
+| `delete_tileset` / `delete_tileset_sidescroller` / `delete_isometric_tile` / `delete_tiles_pro` | Delete by ID | |
 
 ### Map Objects
 
 | Tool | Description | Key Options |
 |------|-------------|-------------|
 | `create_map_object` | Game-ready object | `view`, `outline/shading/detail`, `text_guidance_scale`, `background_image`, `inpainting`, `color_image`, `seed` |
+| `get_map_object` | Status + metadata by ID | `object_id` |
 
 ### Prompt Enhancement
 
@@ -195,6 +198,7 @@ Expand a short description into a richer prompt. These return enhanced **text on
 |------|-------------|
 | `get_balance` | Check your credit balance |
 | `get_job_status` | Check a background job by ID |
+| `get_font_pro_job` / `get_portrait_character_pro_job` | Check a font-pro / portrait↔character job (dedicated endpoints) |
 | `list_pending_jobs` | List jobs that haven't completed (for recovery after disconnection) |
 | `list_job_history` | Recent job history (auto-pruned after 24h) |
 | `read_image` | Load a saved PNG as a Base64 image to pass into other tools |

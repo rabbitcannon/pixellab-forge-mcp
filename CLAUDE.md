@@ -1,13 +1,13 @@
 # PixelLab Forge MCP
 
-MCP server for the PixelLab pixel art generation API. 66 tools covering image generation, characters, animation, tilesets, editing, rotation, and more.
+MCP server for the PixelLab pixel art generation API. 84 tools covering image generation, characters, animation, tilesets, editing, rotation, and more.
 
 ## Project Structure
 
 ```
 src/
   index.ts       - MCP server setup, tool registration via low-level Server API
-  tools.ts       - All 66 tool definitions with JSON schemas and handlers
+  tools.ts       - All 84 tool definitions with JSON schemas and handlers
   api-client.ts  - PixelLab REST client with auto-polling, retry, and job logging
   job-log.ts     - Persistent job log for crash recovery (stored in OS temp dir)
   save-images.ts - Auto-saves base64 images from responses to ./pixellab-forge-output/

@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-07-25
+
+### Added
+- **12 new tools** completing coverage of the documented v2 API (72 → 84). Every
+  remaining retrieval and cleanup endpoint is now exposed:
+  - Deletion: `delete_tileset`, `delete_tileset_sidescroller`, `delete_isometric_tile`,
+    `delete_tiles_pro`.
+  - Sidescroller tilesets could previously only be created — added
+    `get_tileset_sidescroller` and `list_tilesets_sidescroller`.
+  - `list_tiles_pro` (pro tiles could only be fetched one at a time) and
+    `get_map_object` (status + metadata for `create_map_object`).
+  - `delete_character_animations` / `delete_object_animations`, which delete every
+    animation by default or a subset via the optional `animation_type`,
+    `animation_group_id`, and `direction` filters.
+  - `get_font_pro_job` / `get_portrait_character_pro_job` — these two Pro jobs are
+    served from dedicated endpoints rather than `/background-jobs`, so
+    `get_job_status` does not resolve them.
+
+### Changed
+- All new path parameters run through the existing id validation guard, and
+  pagination/animation-filter query strings are built by shared helpers.
+
 ## [1.5.0] - 2026-07-02
 
 ### Added
@@ -142,6 +164,7 @@ _Reimplements community ideas from #1 (credit: @ultimatefrisbie1). Tests: 78 →
   generation, characters/objects, animation, tilesets, editing, and rotation, with
   automatic job polling and a persistent job log for crash recovery.
 
+[1.6.0]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.6.0
 [1.5.0]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.5.0
 [1.4.3]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.4.3
 [1.4.2]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.4.2

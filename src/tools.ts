@@ -60,6 +60,25 @@ function validateId(val: unknown, label: string): string {
   return id;
 }
 
+/** Build a `?limit=&offset=` suffix from list-tool args (empty string when neither is set). */
+function paginationQuery(args: Record<string, unknown>): string {
+  const params = new URLSearchParams();
+  if (args.limit) params.set("limit", String(args.limit));
+  if (args.offset) params.set("offset", String(args.offset));
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+/** Build the optional animation-scoping query for the delete-animations endpoints. */
+function animationDeleteQuery(args: Record<string, unknown>): string {
+  const params = new URLSearchParams();
+  for (const key of ["animation_type", "animation_group_id", "direction"]) {
+    if (args[key]) params.set(key, String(args[key]));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
 // ── Schema helpers ──────────────────────────────────────────────────────
 
 function imageSchema(description: string) {
@@ -879,6 +898,21 @@ export const tools: ToolDef[] = [
     },
   },
   {
+    name: "delete_tileset",
+    description: "Delete a top-down tileset by ID. For sidescroller tilesets use delete_tileset_sidescroller.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tileset_id: { type: "string", description: "Tileset ID" },
+      },
+      required: ["tileset_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.tileset_id, "tileset_id");
+      return client.delete(`/tilesets/${encodeURIComponent(id)}`);
+    },
+  },
+  {
     name: "create_tileset_sidescroller",
     description:
       "Create a SIDESCROLLER/PLATFORMER tileset with terrain and transitions (16x16 or 32x32 tiles). Side-view perspective only. Use this for platformer games. For top-down RPG maps use create_tileset instead.",
@@ -904,6 +938,49 @@ export const tools: ToolDef[] = [
     },
     handler: async (client, args) =>
       client.post("/create-tileset-sidescroller", args),
+  },
+  {
+    name: "get_tileset_sidescroller",
+    description: "Get a previously created sidescroller tileset by ID. For top-down tilesets use get_tileset.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tileset_id: { type: "string", description: "Sidescroller tileset ID" },
+      },
+      required: ["tileset_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.tileset_id, "tileset_id");
+      return client.get(`/tilesets-sidescroller/${encodeURIComponent(id)}`);
+    },
+  },
+  {
+    name: "list_tilesets_sidescroller",
+    description: "List your sidescroller tilesets with pagination. For top-down tilesets use list_tilesets.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Results per page (1-50, default 10)" },
+        offset: { type: "number", description: "Pagination offset (default 0)" },
+      },
+    },
+    handler: async (client, args) =>
+      client.get(`/tilesets-sidescroller${paginationQuery(args)}`),
+  },
+  {
+    name: "delete_tileset_sidescroller",
+    description: "Delete a sidescroller tileset by ID. For top-down tilesets use delete_tileset.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tileset_id: { type: "string", description: "Sidescroller tileset ID" },
+      },
+      required: ["tileset_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.tileset_id, "tileset_id");
+      return client.delete(`/tilesets-sidescroller/${encodeURIComponent(id)}`);
+    },
   },
   {
     name: "create_isometric_tile",
@@ -963,6 +1040,21 @@ export const tools: ToolDef[] = [
     },
   },
   {
+    name: "delete_isometric_tile",
+    description: "Delete an isometric tile by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tile_id: { type: "string", description: "Isometric tile ID" },
+      },
+      required: ["tile_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.tile_id, "tile_id");
+      return client.delete(`/isometric-tiles/${encodeURIComponent(id)}`);
+    },
+  },
+  {
     name: "create_tiles_pro",
     description:
       "Create professional tiles. Types: hex, hex_pointy, isometric, octagon, square_topdown. Size 16-128px (32px recommended).",
@@ -1006,6 +1098,33 @@ export const tools: ToolDef[] = [
     handler: async (client, args) =>
       client.get(`/tiles-pro/${args.tile_id}`),
   },
+  {
+    name: "list_tiles_pro",
+    description: "List your previously created pro tiles with pagination.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Results per page (1-50, default 10)" },
+        offset: { type: "number", description: "Pagination offset (default 0)" },
+      },
+    },
+    handler: async (client, args) => client.get(`/tiles-pro${paginationQuery(args)}`),
+  },
+  {
+    name: "delete_tiles_pro",
+    description: "Delete a pro tile by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tile_id: { type: "string", description: "Tiles pro ID" },
+      },
+      required: ["tile_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.tile_id, "tile_id");
+      return client.delete(`/tiles-pro/${encodeURIComponent(id)}`);
+    },
+  },
 
   // ═══════ MAP OBJECTS ═══════
   {
@@ -1030,6 +1149,21 @@ export const tools: ToolDef[] = [
       required: ["description", "image_size"],
     },
     handler: async (client, args) => client.post("/map-objects", args),
+  },
+  {
+    name: "get_map_object",
+    description: "Get a map object's status and metadata by ID (from create_map_object).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        object_id: { type: "string", description: "Map object ID" },
+      },
+      required: ["object_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.object_id, "object_id");
+      return client.get(`/map-objects/${encodeURIComponent(id)}`);
+    },
   },
 
   // ═══════ CHARACTERS ═══════
@@ -1318,6 +1452,27 @@ export const tools: ToolDef[] = [
       return client.patch(`/characters/${encodeURIComponent(id)}/tags`, { tags: args.tags });
     },
   },
+  {
+    name: "delete_character_animations",
+    description:
+      "Delete animations from a character. Omit all optional filters to delete every animation; pass animation_type and/or animation_group_id (both shown by get_character) to narrow it, and direction to remove a single direction only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_id: { type: "string", description: "Character ID" },
+        animation_type: { type: "string", description: "Animation type shown by get_character (e.g. 'walk', 'idle')" },
+        animation_group_id: { type: "string", description: "Animation group UUID shown by get_character as [group: ...]" },
+        direction: { type: "string", description: "Single direction to delete (e.g. 'south'). Omit for all directions" },
+      },
+      required: ["character_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.character_id, "character_id");
+      return client.delete(
+        `/characters/${encodeURIComponent(id)}/animations${animationDeleteQuery(args)}`,
+      );
+    },
+  },
 
   // ═══════ OBJECTS ═══════
   {
@@ -1524,6 +1679,27 @@ export const tools: ToolDef[] = [
       return client.patch(`/objects/${encodeURIComponent(id)}/tags`, { tags: args.tags });
     },
   },
+  {
+    name: "delete_object_animations",
+    description:
+      "Delete animations from an object. Omit all optional filters to delete every animation; pass animation_type and/or animation_group_id (both shown by get_object) to narrow it, and direction to remove a single direction only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        object_id: { type: "string", description: "Object ID" },
+        animation_type: { type: "string", description: "Animation type shown by get_object (e.g. 'walk', 'idle')" },
+        animation_group_id: { type: "string", description: "Animation group UUID shown by get_object as [group: ...]" },
+        direction: { type: "string", description: "Single direction to delete (e.g. 'south'). Omit for all directions" },
+      },
+      required: ["object_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.object_id, "object_id");
+      return client.delete(
+        `/objects/${encodeURIComponent(id)}/animations${animationDeleteQuery(args)}`,
+      );
+    },
+  },
 
   // ═══════ UI ASSETS, FONTS & PORTRAITS (Pro) ═══════
   {
@@ -1643,6 +1819,22 @@ export const tools: ToolDef[] = [
     handler: async (client, args) => client.post("/generate-font-pro", args),
   },
   {
+    name: "get_font_pro_job",
+    description:
+      "Get the status and result of a generate_font_pro job by its job_id. Use this rather than get_job_status for font-pro jobs — they are served from a dedicated endpoint.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        job_id: { type: "string", description: "Job ID returned by generate_font_pro" },
+      },
+      required: ["job_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.job_id, "job_id");
+      return client.get(`/generate-font-pro/${encodeURIComponent(id)}`);
+    },
+  },
+  {
     name: "portrait_character_pro",
     description:
       "Convert between a bust portrait and a full-body character sprite (Pro). direction='portrait_to_character' takes a portrait in and returns a full-body sprite; 'character_to_portrait' does the reverse. Returns a job_id immediately — poll get_job_status for the result.",
@@ -1663,6 +1855,22 @@ export const tools: ToolDef[] = [
       required: ["image"],
     },
     handler: async (client, args) => client.post("/portrait-character-pro", args),
+  },
+  {
+    name: "get_portrait_character_pro_job",
+    description:
+      "Get the status and result of a portrait_character_pro job by its job_id. Use this rather than get_job_status for portrait↔character jobs — they are served from a dedicated endpoint.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        job_id: { type: "string", description: "Job ID returned by portrait_character_pro" },
+      },
+      required: ["job_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.job_id, "job_id");
+      return client.get(`/portrait-character-pro/${encodeURIComponent(id)}`);
+    },
   },
 
   // ═══════ PROMPT ENHANCEMENT ═══════
