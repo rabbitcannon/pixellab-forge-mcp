@@ -84,7 +84,7 @@ Add this to your `.gitignore`:
 pixellab-forge-output/
 ```
 
-## Available Tools (66)
+## Available Tools (89)
 
 Generation tools automatically poll for results — no manual job status checking needed. If a job takes longer than 10 minutes or the connection drops, use `list_pending_jobs` to find the job ID and `get_job_status` to retrieve the result.
 
@@ -123,6 +123,7 @@ Generation tools automatically poll for results — no manual job status checkin
 | `delete_character_animations` / `delete_object_animations` | Delete animations (all, or scoped) | `animation_type`, `animation_group_id`, `direction` |
 | `download_character_zip` | Export character as ZIP (saved to `pixellab-forge-output/`, returns file path) | |
 | `update_character_tags` / `update_object_tags` | Manage tags | |
+| `set_character_portrait` | Attach a bust portrait to a character (free; used by `vocal_animation`) | `character_id`, `image` |
 
 ### Animation
 
@@ -181,6 +182,17 @@ Generation tools automatically poll for results — no manual job status checkin
 |------|-------------|-------------|
 | `create_map_object` | Game-ready object | `view`, `outline/shading/detail`, `text_guidance_scale`, `background_image`, `inpainting`, `color_image`, `seed` |
 | `get_map_object` | Status + metadata by ID | `object_id` |
+
+### Talking Animation
+
+Generate mouth positions once per expression (`vocal_animation` is the only step that costs generations), then produce unlimited talking GIFs or engine-ready lip-sync plans for free.
+
+| Tool | Description | Key Options |
+|------|-------------|-------------|
+| `vocal_animation` | Generate mouth positions ("visemes") for a portrait (costs generations, once per expression) | `character_id` or inline `portrait` (max 256×256), `mood`, `viseme_count` (3/5/7/12), `no_background`, `seed` |
+| `get_vocal_animation_job` | Poll a `vocal_animation` job (visemes stream in as produced) | `job_id` |
+| `talking_gif` | Text → animated GIF of the character speaking (free) | `text`, `character_id` or `visemes`, `mood`, `frame_ms`, `hold_ms` |
+| `lip_sync` | Frame-by-frame mouth plan for driving lips in a game engine (free, nothing rendered) | `text`, `character_id` or `viseme_count`, `mood`, `frame_ms`, `hold_ms` |
 
 ### Prompt Enhancement
 

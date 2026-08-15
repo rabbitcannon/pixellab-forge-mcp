@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-08-14
+
+### Added
+- **5 new tools** covering the talking-animation family and character portraits
+  (84 → 89), closing the last gaps against the v2 OpenAPI spec:
+  - `vocal_animation` + `get_vocal_animation_job` — generate the mouth-position
+    ("viseme") set for a portrait or saved character. The only talking-animation
+    step that costs generations; results stream in while the job runs.
+  - `talking_gif` — turn a line of text into an animated GIF of the character
+    speaking it (free; re-orders visemes already produced).
+  - `lip_sync` — frame-by-frame mouth plan for driving lips in a game engine
+    (free, nothing rendered).
+  - `set_character_portrait` — attach a bust portrait to a saved character
+    (free), the starting frame `vocal_animation` generates from.
+
+### Changed
+- README tool tables gained a Talking Animation section and the tool count now
+  reads 89.
+
 ## [1.6.0] - 2026-07-25
 
 ### Added
@@ -164,6 +183,7 @@ _Reimplements community ideas from #1 (credit: @ultimatefrisbie1). Tests: 78 →
   generation, characters/objects, animation, tilesets, editing, and rotation, with
   automatic job polling and a persistent job log for crash recovery.
 
+[1.7.0]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.7.0
 [1.6.0]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.6.0
 [1.5.0]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.5.0
 [1.4.3]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.4.3

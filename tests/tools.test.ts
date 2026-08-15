@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { tools, resolveImageArg } from "../src/tools.js";
 
 describe("Tool definitions", () => {
-  it("registers all 84 tools", () => {
-    expect(tools.length).toBe(84);
+  it("registers all 89 tools", () => {
+    expect(tools.length).toBe(89);
   });
 
   it("every tool has a unique name", () => {

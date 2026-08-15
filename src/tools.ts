@@ -1453,6 +1453,23 @@ export const tools: ToolDef[] = [
     },
   },
   {
+    name: "set_character_portrait",
+    description:
+      "Attach a bust portrait to a saved character (free — no generation runs). The portrait is the starting frame for talking animations: vocal_animation generates mouth positions from it. Overwrites any existing portrait. To generate a portrait from a full-body sprite first, use portrait_character_pro with direction='character_to_portrait'.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_id: { type: "string", description: "Character ID" },
+        image: imageSchema("Bust portrait image to attach"),
+      },
+      required: ["character_id", "image"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.character_id, "character_id");
+      return client.post(`/characters/${encodeURIComponent(id)}/portrait`, { image: args.image });
+    },
+  },
+  {
     name: "delete_character_animations",
     description:
       "Delete animations from a character. Omit all optional filters to delete every animation; pass animation_type and/or animation_group_id (both shown by get_character) to narrow it, and direction to remove a single direction only.",
@@ -1871,6 +1888,81 @@ export const tools: ToolDef[] = [
       const id = validateId(args.job_id, "job_id");
       return client.get(`/portrait-character-pro/${encodeURIComponent(id)}`);
     },
+  },
+
+  // ═══════ TALKING ANIMATION ═══════
+  {
+    name: "vocal_animation",
+    description:
+      "Generate the set of mouth positions ('visemes') that lets a portrait be lip-synced to any line of text. This is the only talking-animation step that costs generations — pay it once per expression, then talking_gif and lip_sync are free and unlimited. Provide either character_id (uses the character's stored portrait, set via set_character_portrait, and saves the result onto it) or an inline portrait image (max 256x256, result returned inline). Returns a job_id — poll get_vocal_animation_job.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_id: { type: "string", description: "Generate from this character's stored portrait and save the result onto it. Required to later use character_id with talking_gif. Mutually exclusive with portrait" },
+        portrait: imageSchema("Generate from this image instead and store nothing — mouth positions come back inline. Max 256x256. Mutually exclusive with character_id"),
+        mood: { type: "string", enum: ["neutral", "happy", "angry", "sad", "surprised"], description: "Expression held on the face throughout (default 'neutral'). Call once per expression you want", default: "neutral" },
+        viseme_count: { type: "integer", enum: [3, 5, 7, 12], description: "How many mouth positions to generate (default 7). 3 for tiny portraits, 12 for large close-ups. Must be the same for every expression on one character", default: 7 },
+        no_background: { type: "boolean", description: "Return frames with a transparent background (default true)", default: true },
+        seed,
+      },
+    },
+    handler: async (client, args) => client.post("/vocal-animation", args),
+  },
+  {
+    name: "get_vocal_animation_job",
+    description:
+      "Get the status and result of a vocal_animation job by its job_id. Mouth positions stream in as they are produced (completed_visemes fills up while the job runs). On completion, a character_id job has saved the set onto the character; a portrait job returns the frames in visemes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        job_id: { type: "string", description: "Job ID returned by vocal_animation" },
+      },
+      required: ["job_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.job_id, "job_id");
+      return client.get(`/vocal-animation/${encodeURIComponent(id)}`);
+    },
+  },
+  {
+    name: "talking_gif",
+    description:
+      "Turn a line of text into an animated GIF of a character speaking it. Free — spends no generations; it only re-orders mouth positions already produced by vocal_animation. Provide either character_id (with mouth positions stored on the character) or supply visemes directly as returned by get_vocal_animation_job.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", maxLength: 500, description: "The line of dialogue to lip-sync. Mouth shapes are derived from the letters, so any language using the latin alphabet works" },
+        character_id: { type: "string", description: "Use the mouth positions stored on this character. Mutually exclusive with visemes" },
+        visemes: {
+          type: "object",
+          description: "Supply the mouth positions directly, as returned by get_vocal_animation_job (map of viseme name to image). Mutually exclusive with character_id",
+          additionalProperties: imageSchema("Mouth position image"),
+        },
+        mood: { type: "string", enum: ["neutral", "happy", "angry", "sad", "surprised"], description: "Which stored expression to talk with (defaults to the character's first). Only valid with character_id" },
+        frame_ms: { type: "integer", minimum: 20, maximum: 500, description: "Milliseconds per mouth position (default 90)", default: 90 },
+        hold_ms: { type: "integer", minimum: 0, maximum: 5000, description: "Pause held on the closed mouth at the end, so a looping GIF has a beat between takes (default 600)", default: 600 },
+      },
+      required: ["text"],
+    },
+    handler: async (client, args) => client.post("/talking-gif", args),
+  },
+  {
+    name: "lip_sync",
+    description:
+      "Get the frame-by-frame lip-sync plan for a line of text — which mouth position to show, for how long, and how far through the text it lands. Free, and nothing is rendered: use this instead of talking_gif when animating in a game engine and driving the mouth yourself. Provide character_id (response also carries the spritesheet URL and row to read) or a bare viseme_count preset.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", maxLength: 500, description: "The line of dialogue to lip-sync" },
+        character_id: { type: "string", description: "Use the mouth positions stored on this character; the response then also carries the spritesheet URL and the row to read. Mutually exclusive with viseme_count" },
+        mood: { type: "string", enum: ["neutral", "happy", "angry", "sad", "surprised"], description: "Which stored expression to use (defaults to the character's first). Only valid with character_id" },
+        viseme_count: { type: "integer", enum: [3, 5, 7, 12], description: "Plan against a preset without touching a character — useful if you hold the frames yourself. Mutually exclusive with character_id" },
+        frame_ms: { type: "integer", minimum: 1, maximum: 5000, description: "Milliseconds to hold each mouth position (default 90)", default: 90 },
+        hold_ms: { type: "integer", minimum: 0, maximum: 10000, description: "Extra time on the final closed mouth (default 600)", default: 600 },
+      },
+      required: ["text"],
+    },
+    handler: async (client, args) => client.post("/lip-sync", args),
   },
 
   // ═══════ PROMPT ENHANCEMENT ═══════
