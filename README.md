@@ -183,6 +183,15 @@ Generation tools automatically poll for results — no manual job status checkin
 | `create_map_object` | Game-ready object | `view`, `outline/shading/detail`, `text_guidance_scale`, `background_image`, `inpainting`, `color_image`, `seed` |
 | `get_map_object` | Status + metadata by ID | `object_id` |
 
+### UI Assets & Fonts
+
+| Tool | Description | Key Options |
+|------|-------------|-------------|
+| `create_ui_asset` | Persistent shape-based UI panel (distinct from the one-shot `generate_ui`) | `image_size`, `elements`, `pieces` (shape layout), `style_image`, `color_palette`, `no_background`, `name`, `project_id` |
+| `get_ui_asset` / `list_ui_assets` / `delete_ui_asset` | Retrieve, list (paginated), or delete UI assets | `ui_asset_id`; `limit`, `offset` |
+| `generate_font_pro` | Styled pixel-art font (glyph atlas + `.ttf`) | `description`, `weight`, `image_size`, `glyph_px`, `font_name` |
+| `portrait_character_pro` | Convert between a bust portrait and a full-body sprite (both directions) | `direction`, `image`, `view`, `result_size`, `seed` |
+
 ### Talking Animation
 
 Generate mouth positions once per expression (`vocal_animation` is the only step that costs generations), then produce unlimited talking GIFs or engine-ready lip-sync plans for free.
