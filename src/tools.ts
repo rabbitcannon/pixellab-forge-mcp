@@ -60,6 +60,28 @@ function validateId(val: unknown, label: string): string {
   return id;
 }
 
+/**
+ * Fetch a binary endpoint (ZIP etc.) and save it into OUTPUT_DIR under a safe filename
+ * derived from the Content-Disposition header, falling back to `fallbackName`.
+ */
+async function downloadToOutputDir(client: PixelLabClient, path: string, fallbackName: string) {
+  const { data, filename } = await client.getBinary(path);
+  const buf = Buffer.from(data, "base64");
+  ensureOutputDir();
+  let baseName = fallbackName;
+  if (filename) {
+    const stripped = basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+    if (stripped && stripped !== "." && stripped !== "..") baseName = stripped;
+  }
+  const outRoot = resolve(OUTPUT_DIR);
+  const filePath = resolve(join(OUTPUT_DIR, baseName));
+  if (filePath !== outRoot && !filePath.startsWith(outRoot + "/") && !filePath.startsWith(outRoot + "\\")) {
+    throw new Error("Resolved output path escapes OUTPUT_DIR");
+  }
+  writeFileSync(filePath, buf);
+  return { success: true, file_path: filePath, size_bytes: buf.length };
+}
+
 /** Build a `?limit=&offset=` suffix from list-tool args (empty string when neither is set). */
 function paginationQuery(args: Record<string, unknown>): string {
   const params = new URLSearchParams();
@@ -164,6 +186,33 @@ const proportionsSchema = {
     hip_width: { type: "number" },
   },
 };
+
+const proFlashStyleImage = {
+  type: "object",
+  description: "Optional style reference ('left-box' image) whose visual traits are copied into the result. Must fit the operation's native canvas",
+  properties: {
+    image: imageSchema("Style reference image"),
+    size: sizeSchema("Dimensions of the style image"),
+    usage_description: { type: "string", description: "Optional note on how the style image should be used" },
+  },
+  required: ["image", "size"],
+};
+
+const proFlashStyleOptions = {
+  type: "object",
+  description: "Which visual traits to copy from style_image (all default true)",
+  properties: {
+    color_palette: { type: "boolean", default: true },
+    outline: { type: "boolean", default: true },
+    detail: { type: "boolean", default: true },
+    shading: { type: "boolean", default: true },
+  },
+};
+
+const proFlashSeed = { type: "integer", minimum: 0, description: "Recorded seed (default 0); the Pro Flash provider does not promise deterministic output" };
+const projectId = { type: "string", description: "Optional project ID to file the result under" };
+const proFlashSizeNote =
+  "Native sizes: 16x16 (experimental), 24x24, 32x32, 32x48, 64x64, 96x64, 96x96. Custom (Beta): 16-256 per side, both multiples of 4. Defaults to 64x64";
 
 const colorPaletteArray = {
   type: "array",
@@ -400,6 +449,166 @@ export const tools: ToolDef[] = [
     handler: async (client, args) => client.post("/create-image-pixflux-background", args),
   },
 
+  // ═══════ PRO FLASH ═══════
+  {
+    name: "create_image_pro_flash",
+    description:
+      "Generate one native pixel-art image with the Pro Flash engine, optionally guided by a style image. Runs as a background job; the completed result carries the PNG, an image_url and a durable source_image_id — keep that ID to later build a Pro Flash character or object from the same image without paying for it again (create_character_pro_flash / create_object_pro_flash). About 5 generation units; call get_pro_flash_cost for current pricing and get_pro_flash_capabilities for the exact native sizes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "What to generate (max 2000 chars)" },
+        image_size: sizeSchema(`Output size. ${proFlashSizeNote}`),
+        no_background: noBackground,
+        style_image: proFlashStyleImage,
+        style_options: proFlashStyleOptions,
+        seed: proFlashSeed,
+        project_id: projectId,
+      },
+      required: ["description", "image_size"],
+    },
+    handler: async (client, args) => client.post("/create-image-pro-flash", args),
+  },
+  {
+    name: "edit_image_pro_flash",
+    description:
+      "Edit one image at a supported native size with the Pro Flash engine, using either a text instruction (method 'text') or a reference image (method 'reference'). The source canvas never grows or resizes, and reference art must fit inside it. Runs as a background job. Call get_pro_flash_capabilities for the exact native shapes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        image: imageSchema("Source image at a supported native size"),
+        method: { type: "string", enum: ["text", "reference"], description: "Edit driver (default 'text')", default: "text" },
+        description: { type: "string", description: "Edit instruction (used with method 'text')" },
+        reference_image: imageSchema("Reference art to apply (used with method 'reference'); must fit the source canvas"),
+        no_background: { type: "boolean", description: "Return on a transparent background (default false)", default: false },
+        use_color_palette_correction: { type: "boolean", description: "Snap the result back to the source image's palette (default false)", default: false },
+        seed: proFlashSeed,
+        project_id: projectId,
+      },
+      required: ["image"],
+    },
+    handler: async (client, args) => client.post("/edit-image-pro-flash", args),
+  },
+  {
+    name: "inpaint_image_pro_flash",
+    description:
+      "Pro Flash inpainting: replace only the WHITE pixels of mask_image, preserving unmasked RGBA exactly. Source and mask must share identical supported native dimensions; mask RGB must be pure black/white (alpha is ignored) and may not be empty. output_method controls whether you get the full composite or only the changed pixels (transparent elsewhere). An optional context_image requires its bounding_box in the source. Runs as a background job.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        image: imageSchema("Source image at a supported native size"),
+        mask_image: imageSchema("Black/white mask, same size as image; white = repaint"),
+        description: { type: "string", description: "What to paint into the masked region (max 2000 chars)" },
+        context_image: imageSchema("Optional native-size context image; requires bounding_box"),
+        bounding_box: {
+          type: "object",
+          description: "Where context_image sits in the source (required when context_image is given)",
+          properties: {
+            x: { type: "integer", minimum: 0 },
+            y: { type: "integer", minimum: 0 },
+            width: { type: "integer", minimum: 1 },
+            height: { type: "integer", minimum: 1 },
+          },
+          required: ["x", "y", "width", "height"],
+        },
+        no_background: { type: "boolean", description: "Return on a transparent background (default false)", default: false },
+        background_removal_task: {
+          type: "string",
+          enum: ["remove_simple_background", "remove_complex_background"],
+          description: "Background removal complexity when no_background is set (default remove_simple_background)",
+        },
+        output_method: {
+          type: "string",
+          enum: ["New layer with changes", "Modify current layer, only changes", "Modify current layer"],
+          description: "'Modify current layer' returns the full composite (default); the other two return only the changed pixels, transparent outside the mask",
+        },
+        crop_to_mask: { type: "boolean", description: "Crop the working region to the mask bounds (default true)", default: true },
+        seed: proFlashSeed,
+        project_id: projectId,
+      },
+      required: ["image", "mask_image", "description"],
+    },
+    handler: async (client, args) => client.post("/inpaint-image-pro-flash", args),
+  },
+  {
+    name: "create_character_pro_flash",
+    description:
+      "Create a saved character with the Pro Flash engine in one call: generates a south-facing image from the description, then produces eight v3 rotation views. To skip the (paid) first image, pass source_image_id from an earlier create_image_pro_flash result, or upload first_frame directly — you then pay only for rotations. Pixels are preserved and padded with transparency to the square v3 canvas. Returns a job plus character_id; poll get_job_status for itemized billing_stages, then get_character.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Character description (max 2000 chars). Still required when reusing an image" },
+        name: { type: "string", description: "Display name (max 200 chars)" },
+        image_size: sizeSchema(`Size for text creation. ${proFlashSizeNote}`, false),
+        source_image_id: { type: "string", description: "Owned south-facing image ID from a Pro Flash image job — reuses its pixels without another image charge. Mutually exclusive with first_frame" },
+        first_frame: imageSchema("South-facing PNG to rotate instead of generating one. Mutually exclusive with source_image_id"),
+        first_frame_direction: { ...directionEnum, description: "Direction the supplied/generated first frame faces (default 'south')" },
+        view: { type: "string", enum: ["low top-down", "high top-down", "side"], description: "Camera view (default 'low top-down')" },
+        template_id: { type: "string", enum: ["mannequin", "bear", "cat", "dog", "horse", "lion", "custom"], description: "Skeleton body template (default 'mannequin')" },
+        n_directions: { type: "integer", description: "Number of rotation views to generate (default 8)", default: 8 },
+        style_image: proFlashStyleImage,
+        style_options: proFlashStyleOptions,
+        seed: proFlashSeed,
+      },
+      required: ["description"],
+    },
+    handler: async (client, args) => client.post("/create-character-pro-flash", args),
+  },
+  {
+    name: "create_object_pro_flash",
+    description:
+      "Create a saved object with the Pro Flash engine in one call: generates a south-facing image from the description and, with n_directions 8, adds v3 rotation views (n_directions 1 = single image). Pass source_image_id or first_frame to reuse an existing image: one-direction finalization is then free and eight views charge only rotations. Objects have no skeleton. Returns a job plus object_id; poll get_job_status for billing_stages, then get_object.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "Object description (max 2000 chars)" },
+        name: { type: "string", description: "Display name (max 200 chars)" },
+        image_size: sizeSchema(`Size for text creation. ${proFlashSizeNote}`, false),
+        source_image_id: { type: "string", description: "Owned south-facing image ID from a Pro Flash image job — reuses its pixels free of the image charge. Mutually exclusive with first_frame" },
+        first_frame: imageSchema("South-facing PNG to use instead of generating one. Mutually exclusive with source_image_id"),
+        first_frame_direction: { ...directionEnum, description: "Direction the supplied/generated first frame faces (default 'south')" },
+        view: { type: "string", enum: ["low top-down", "high top-down", "side"], description: "Camera view (default 'low top-down')" },
+        n_directions: { type: "integer", enum: [1, 8], description: "1 = single image, 8 = full rotation set (default 8)", default: 8 },
+        style_image: proFlashStyleImage,
+        style_options: proFlashStyleOptions,
+        seed: proFlashSeed,
+      },
+      required: ["description"],
+    },
+    handler: async (client, args) => client.post("/create-object-pro-flash", args),
+  },
+  {
+    name: "get_pro_flash_capabilities",
+    description:
+      "List the Pro Flash engine's native size presets, beta custom-dimension rules, and supported controls. Free. Check this before calling create/edit/inpaint_image_pro_flash with a non-standard size.",
+    inputSchema: { type: "object", properties: {} },
+    handler: async (client) => client.get("/pro-flash/capabilities"),
+  },
+  {
+    name: "get_pro_flash_cost",
+    description:
+      "Estimate the provisional cost of a Pro Flash operation in generation units, split into the first-image component and the v3 rotation component. Free. Actual billed usage is reported when the job completes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        operation: { type: "string", enum: ["create", "edit", "inpaint", "character", "object"], description: "Which Pro Flash operation to price" },
+        width: { type: "integer", minimum: 1, description: "Canvas width in pixels" },
+        height: { type: "integer", minimum: 1, description: "Canvas height in pixels" },
+        n_directions: { type: "integer", description: "Rotation views for character/object (default 8)" },
+      },
+      required: ["operation", "width", "height"],
+    },
+    handler: async (client, args) => {
+      const params = new URLSearchParams({
+        operation: String(args.operation),
+        width: String(args.width),
+        height: String(args.height),
+      });
+      if (args.n_directions !== undefined) params.set("n_directions", String(args.n_directions));
+      return client.get(`/pro-flash/cost?${params.toString()}`);
+    },
+  },
+
   // ═══════ IMAGE OPERATIONS ═══════
   {
     name: "image_to_pixelart",
@@ -432,6 +641,51 @@ export const tools: ToolDef[] = [
       required: ["image"],
     },
     handler: async (client, args) => client.post("/image-to-pixelart-pro", args),
+  },
+  {
+    name: "unzoom",
+    description:
+      "Recover native-resolution pixel art from an upscaled image (e.g. a 32x32 sprite saved at 512x512). Detects the underlying pixel grid and downsamples back onto it, handling slightly uneven grids from lossy resizes. Input min 256x256, max area 2048x2048. The result is OPAQUE (transparency is composited onto white) — run remove_background afterwards if you need it cut out again. Use before passing user-supplied art as a style/reference image, or before correct_pixelart.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        image: imageSchema("Upscaled pixel art image (min 256x256, max area 2048x2048)"),
+        quantize: { type: "integer", minimum: -1, maximum: 256, description: "Palette handling: 0 auto-detects a palette (default), -1 keeps every color the downsample produces, 2-256 quantizes to exactly that many colors" },
+      },
+      required: ["image"],
+    },
+    handler: async (client, args) => client.post("/unzoom", args),
+  },
+  {
+    name: "correct_pixelart",
+    description:
+      "Clean up existing pixel art WITHOUT changing its size: sharpens edges, removes stray/anti-aliased pixels, and tightens the palette while keeping the sprite on its pixel grid. Good for art that went through a lossy pipeline, hand-drawn art, or nearly-on-grid output from other tools. Pass several same-size frames together (an animation, or a character's directions) so they stay consistent. Max area 1024x1024; transparency is preserved. If the image is upscaled, run unzoom first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        images: { type: "array", items: imageSchema("Pixel art frame"), description: "Image(s) to clean up. All must be the same size" },
+        strength: { type: "number", minimum: 0, maximum: 1, description: "How far the model may move from your art (0.0-1.0, default 0.1). Start low; raise only if the art needs real repair", default: 0.1 },
+      },
+      required: ["images"],
+    },
+    handler: async (client, args) => client.post("/correct-pixelart", args),
+  },
+  {
+    name: "reduce_colors",
+    description:
+      "Quantize one or more images onto a smaller SHARED palette, optionally with ordered dithering. Pass an animation's frames or a character's eight directions in one call so they come back sharing one palette instead of drifting apart. Choose the palette by omitting both options (auto-detect size), num_colors (exact count), or palette_image (reuse an existing image's colors, max 256). Total pixel budget across all frames is 512x512 (e.g. sixteen 64x64 frames).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        images: { type: "array", items: imageSchema("Frame to quantize"), description: "Image(s) to quantize together. All must be the same size" },
+        num_colors: { type: "integer", description: "Target number of colors. Omit to auto-detect. Mutually exclusive with palette_image" },
+        palette_image: imageSchema("Image whose colors become the palette (max 256 colors). Mutually exclusive with num_colors"),
+        dithering: { type: "string", enum: ["none", "2x2", "4x4", "8x8"], description: "Ordered dithering matrix size (default 'none'). Larger = smoother gradients, busier look" },
+        dithering_strength: { type: "number", minimum: 0, maximum: 10, description: "How strongly to dither (0-10, default 5). Ignored when dithering is 'none'" },
+      },
+      required: ["images"],
+    },
+    handler: async (client, args) => client.post("/reduce-colors", args),
   },
   {
     name: "resize_image",
@@ -644,6 +898,27 @@ export const tools: ToolDef[] = [
     handler: async (client, args) => client.post("/animate-with-text-v3", args),
   },
   {
+    name: "animate_pixminimax",
+    description:
+      "Beta (tier 1+ subscription): animate a single frame from a text description of the MOTION using the PixMiniMax engine (MiniMax H3). Best for fluid, longer clips — 4 to 40 frames (multiples of 4) at up to 256x256. Result holds frame_count + 1 images: index 0 is your unchanged input frame. Optional last_frame makes it a keyframe interpolation. Priced by clip length and size (about 1-12 generations); sizes just above 64 or 128px are cheaper than just below. Typically takes 1-5 minutes. Use animate_with_text_v3 for the standard engine.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        first_frame: imageSchema("Starting frame (max 256x256)"),
+        last_frame: imageSchema("Optional end pose, same size as first_frame — the motion is generated between the two"),
+        description: { type: "string", description: "The motion to generate (e.g. 'walking forward', 'sword slash', 'flame flickering'). Describe movement, not appearance. Max 1000 chars" },
+        frame_count: { type: "integer", description: "Frames to generate — a multiple of 4 from 4 to 40 (default 8)", default: 8 },
+        seed: { type: "integer", description: "Seed for reproducible generation (0 = random, default 0)" },
+        no_background: { type: "boolean", description: "Return frames on transparency; an opaque input is cut out of its first frame before animating (default true)", default: true },
+        drift_threshold: { type: "number", description: "Color de-flicker sensitivity. Frames whose foreground drifts from the first frame beyond this are corrected toward it; 0 corrects every frame, higher corrects fewer. Omit for the default" },
+        enhance_prompt: { type: "boolean", description: "Expand description into a detailed PixMiniMax motion prompt before generating (+0.05 generations; expanded text returned as enhanced_prompt). Default false", default: false },
+        direction: { ...directionEnum, description: "Facing direction of the sprite (south = towards camera). Only used with enhance_prompt to hold the facing and aim attacks that way. Omit to let the enhancer read it from the image" },
+      },
+      required: ["first_frame", "description"],
+    },
+    handler: async (client, args) => client.post("/animate-pixminimax", args),
+  },
+  {
     name: "estimate_skeleton",
     description:
       "Estimate skeleton keypoints from a character image.",
@@ -829,6 +1104,24 @@ export const tools: ToolDef[] = [
       required: ["image", "image_size", "description", "width", "height"],
     },
     handler: async (client, args) => client.post("/edit-image", args),
+  },
+  {
+    name: "edit_image_pixen",
+    description:
+      "Edit an existing pixel art image with a text instruction on the Pixen model — pose, composition and pixel style are preserved and only what you ask for changes. Source max 256px per side (crop, don't rescale). Target canvas defaults to the source size; area 16x16 to 256x256 (a wide-but-short 128x512 is fine). The model re-renders at the target size rather than rescaling. Costs 1 generation. Prefer this over edit_image for Pixen-generated art.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        image: imageSchema("Source pixel art (max 256px per side)"),
+        description: { type: "string", description: "What to change (e.g. 'give him a red cape', 'make the armor gold'). Max 500 chars" },
+        width: { type: "integer", description: "Target canvas width (defaults to source width). Area must be at most 256x256" },
+        height: { type: "integer", description: "Target canvas height (defaults to source height)" },
+        seed: { type: "integer", description: "Seed for reproducible generation" },
+        no_background: noBackground,
+      },
+      required: ["image", "description"],
+    },
+    handler: async (client, args) => client.post("/edit-image-pixen", args),
   },
 
   // ═══════ TILESETS ═══════
@@ -1415,21 +1708,23 @@ export const tools: ToolDef[] = [
     },
     handler: async (client, args) => {
       const id = validateId(args.character_id, "character_id");
-      const { data, filename } = await client.getBinary(`/characters/${encodeURIComponent(id)}/zip`);
-      const buf = Buffer.from(data, "base64");
-      ensureOutputDir();
-      // Derive a safe filename, falling back to a generated name if the header is missing/unsafe.
-      let baseName = `character_${id}_${Date.now()}.zip`;
-      if (filename) {
-        const stripped = basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
-        if (stripped && stripped !== "." && stripped !== "..") baseName = stripped;
-      }
-      const filePath = resolve(join(OUTPUT_DIR, baseName));
-      if (filePath !== resolve(OUTPUT_DIR) && !filePath.startsWith(resolve(OUTPUT_DIR) + "/") && !filePath.startsWith(resolve(OUTPUT_DIR) + "\\")) {
-        throw new Error("Resolved output path escapes OUTPUT_DIR");
-      }
-      writeFileSync(filePath, buf);
-      return { success: true, file_path: filePath, size_bytes: buf.length };
+      return downloadToOutputDir(client, `/characters/${encodeURIComponent(id)}/zip`, `character_${id}_${Date.now()}.zip`);
+    },
+  },
+  {
+    name: "download_character_spritesheet",
+    description:
+      "Export a character as a single spritesheet: a small ZIP holding one uniform-grid PNG (row 0 = rotations, then one row per animation-direction, columns = frames) plus a layout JSON describing cell size and which animation/direction each row holds. Frames are centred in equal cells and never rescaled. Saves to pixellab-forge-output and returns the file path. Use download_character_zip instead for individual frame PNGs. Returns an error while the character is still generating (HTTP 423).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_id: { type: "string", description: "Character ID" },
+      },
+      required: ["character_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.character_id, "character_id");
+      return downloadToOutputDir(client, `/characters/${encodeURIComponent(id)}/spritesheet`, `character_${id}_spritesheet_${Date.now()}.zip`);
     },
   },
   {
@@ -1674,6 +1969,22 @@ export const tools: ToolDef[] = [
     handler: async (client, args) => {
       const id = validateId(args.object_id, "object_id");
       return client.delete(`/objects/${encodeURIComponent(id)}`);
+    },
+  },
+  {
+    name: "download_object_spritesheet",
+    description:
+      "Export an object as a single spritesheet: a small ZIP holding one uniform-grid PNG (row 0 = rotations, then one row per animation-direction, columns = frames) plus a layout JSON describing cell size and which animation/direction each row holds. Frames are centred in equal cells and never rescaled. Saves to pixellab-forge-output and returns the file path. Only works for objects you created; errors while rotations are still generating.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        object_id: { type: "string", description: "Object ID" },
+      },
+      required: ["object_id"],
+    },
+    handler: async (client, args) => {
+      const id = validateId(args.object_id, "object_id");
+      return downloadToOutputDir(client, `/objects/${encodeURIComponent(id)}/spritesheet`, `object_${id}_spritesheet_${Date.now()}.zip`);
     },
   },
   {

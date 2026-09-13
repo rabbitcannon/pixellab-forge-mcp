@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { tools, resolveImageArg } from "../src/tools.js";
 
 describe("Tool definitions", () => {
-  it("registers all 89 tools", () => {
-    expect(tools.length).toBe(89);
+  it("registers all 103 tools", () => {
+    expect(tools.length).toBe(103);
   });
 
   it("every tool has a unique name", () => {
@@ -535,6 +535,67 @@ describe("Tool definitions", () => {
     it("passes primitives through unchanged (e.g. read_image's top-level file_path string)", async () => {
       expect(await resolveImageArg("some/path.png")).toBe("some/path.png");
       expect(await resolveImageArg(42)).toBe(42);
+    });
+  });
+
+  describe("v1.8 tools (Pro Flash, pixel utilities, spritesheets)", () => {
+    const postCases: Array<[string, string, Record<string, unknown>]> = [
+      ["create_image_pro_flash", "/create-image-pro-flash", { description: "knight", image_size: { width: 64, height: 64 } }],
+      ["edit_image_pro_flash", "/edit-image-pro-flash", { image: { base64: "x" } }],
+      ["inpaint_image_pro_flash", "/inpaint-image-pro-flash", { image: { base64: "x" }, mask_image: { base64: "y" }, description: "hat" }],
+      ["create_character_pro_flash", "/create-character-pro-flash", { description: "mage" }],
+      ["create_object_pro_flash", "/create-object-pro-flash", { description: "chest" }],
+      ["unzoom", "/unzoom", { image: { base64: "x" } }],
+      ["correct_pixelart", "/correct-pixelart", { images: [{ base64: "x" }] }],
+      ["reduce_colors", "/reduce-colors", { images: [{ base64: "x" }], num_colors: 16 }],
+      ["edit_image_pixen", "/edit-image-pixen", { image: { base64: "x" }, description: "red cape" }],
+      ["animate_pixminimax", "/animate-pixminimax", { first_frame: { base64: "x" }, description: "walking" }],
+    ];
+
+    for (const [name, path, args] of postCases) {
+      it(`${name} posts to ${path} with the args passed through`, async () => {
+        const tool = tools.find((t) => t.name === name)!;
+        expect(tool).toBeDefined();
+        const calls: any[] = [];
+        await tool.handler({ post: (p: string, b: unknown) => (calls.push([p, b]), Promise.resolve({})) } as any, args);
+        expect(calls[0][0]).toBe(path);
+        expect(calls[0][1]).toEqual(args);
+      });
+    }
+
+    it("get_pro_flash_capabilities GETs /pro-flash/capabilities", async () => {
+      const tool = tools.find((t) => t.name === "get_pro_flash_capabilities")!;
+      const calls: string[] = [];
+      await tool.handler({ get: (p: string) => (calls.push(p), Promise.resolve({})) } as any, {});
+      expect(calls[0]).toBe("/pro-flash/capabilities");
+    });
+
+    it("get_pro_flash_cost encodes its query parameters", async () => {
+      const tool = tools.find((t) => t.name === "get_pro_flash_cost")!;
+      const calls: string[] = [];
+      await tool.handler({ get: (p: string) => (calls.push(p), Promise.resolve({})) } as any, { operation: "character", width: 64, height: 64, n_directions: 8 });
+      expect(calls[0]).toBe("/pro-flash/cost?operation=character&width=64&height=64&n_directions=8");
+      await tool.handler({ get: (p: string) => (calls.push(p), Promise.resolve({})) } as any, { operation: "create", width: 32, height: 48 });
+      expect(calls[1]).toBe("/pro-flash/cost?operation=create&width=32&height=48");
+    });
+
+    it("spritesheet exports hit the binary endpoint and reject unsafe ids", async () => {
+      const png = "iVBORw0KGgo=";
+      for (const [name, arg, id, path] of [
+        ["download_character_spritesheet", "character_id", "char-1", "/characters/char-1/spritesheet"],
+        ["download_object_spritesheet", "object_id", "obj-1", "/objects/obj-1/spritesheet"],
+      ] as const) {
+        const tool = tools.find((t) => t.name === name)!;
+        const calls: string[] = [];
+        const result = (await tool.handler(
+          { getBinary: (p: string) => (calls.push(p), Promise.resolve({ data: png, mimeType: "application/zip" })) } as any,
+          { [arg]: id },
+        )) as { success: boolean; file_path: string };
+        expect(calls[0]).toBe(path);
+        expect(result.success).toBe(true);
+        expect(result.file_path).toContain("spritesheet");
+        await expect(tool.handler({ getBinary: () => Promise.resolve({ data: png, mimeType: "" }) } as any, { [arg]: "../etc" })).rejects.toThrow(/Invalid/);
+      }
     });
   });
 });
