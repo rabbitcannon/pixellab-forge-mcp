@@ -84,7 +84,7 @@ Add this to your `.gitignore`:
 pixellab-forge-output/
 ```
 
-## Available Tools (89)
+## Available Tools (103)
 
 Generation tools automatically poll for results — no manual job status checking needed. If a job takes longer than 10 minutes or the connection drops, use `list_pending_jobs` to find the job ID and `get_job_status` to retrieve the result.
 
@@ -99,6 +99,20 @@ Generation tools automatically poll for results — no manual job status checkin
 | `create_image_pixflux` | Pixflux engine (32-400px) | `text_guidance_scale`, `init_image`, `color_image`, `no_background`, `isometric`, `outline/shading/detail`, `seed` |
 | `create_image_pixflux_background` | Pixflux engine tuned for backgrounds/scenes | Same as `create_image_pixflux` |
 | `create_image_bitforge` | Bitforge engine (max 200px) | `text_guidance_scale`, `style_image`, `inpainting_image`, `mask_image`, `color_image`, `skeleton_keypoints`, `outline/shading/detail`, `seed` |
+
+### Pro Flash
+
+Newest engine. Native sizes 16×16 to 96×96 (custom 16–256, multiples of 4). Image results carry a durable `source_image_id` you can reuse to build a character or object from the same image without paying for it again.
+
+| Tool | Description | Key Options |
+|------|-------------|-------------|
+| `create_image_pro_flash` | Generate one native pixel-art image | `image_size`, `style_image`, `style_options`, `no_background`, `seed`, `project_id` |
+| `edit_image_pro_flash` | Edit by text or reference; canvas never resizes | `method` (text/reference), `description`, `reference_image`, `use_color_palette_correction`, `no_background`, `seed` |
+| `inpaint_image_pro_flash` | Repaint only white mask pixels | `mask_image`, `context_image` + `bounding_box`, `output_method`, `crop_to_mask`, `no_background`, `seed` |
+| `create_character_pro_flash` | Saved character: first frame + 8 v3 views in one call | `image_size`, `source_image_id` or `first_frame`, `view`, `template_id`, `n_directions`, `style_image`, `seed` |
+| `create_object_pro_flash` | Saved object: first frame + optional 8 views | `image_size`, `source_image_id` or `first_frame`, `view`, `n_directions` (1/8), `style_image`, `seed` |
+| `get_pro_flash_capabilities` | Native presets, beta dimension rules, supported controls (free) | |
+| `get_pro_flash_cost` | Provisional cost split into first-image + rotation units (free) | `operation`, `width`, `height`, `n_directions` |
 
 ### Characters & Objects
 
@@ -122,6 +136,7 @@ Generation tools automatically poll for results — no manual job status checkin
 | `delete_character` / `delete_object` | Delete by ID | |
 | `delete_character_animations` / `delete_object_animations` | Delete animations (all, or scoped) | `animation_type`, `animation_group_id`, `direction` |
 | `download_character_zip` | Export character as ZIP (saved to `pixellab-forge-output/`, returns file path) | |
+| `download_character_spritesheet` / `download_object_spritesheet` | Export as one uniform-grid spritesheet PNG + layout JSON (ZIP saved to `pixellab-forge-output/`) | |
 | `update_character_tags` / `update_object_tags` | Manage tags | |
 | `set_character_portrait` | Attach a bust portrait to a character (free; used by `vocal_animation`) | `character_id`, `image` |
 
@@ -132,6 +147,7 @@ Generation tools automatically poll for results — no manual job status checkin
 | `animate_with_text` | Animate from text + reference | `text_guidance_scale`, `image_guidance_scale`, `n_frames`, `init_images`, `color_image`, `seed` |
 | `animate_with_text_v2` | Animate existing image (32-256px) | `reference_image`, `action`, `view`, `direction`, `no_background`, `seed` |
 | `animate_with_text_v3` | Animate from first/last keyframes | `first_frame`, `last_frame`, `frame_count`, `no_background`, `seed` |
+| `animate_pixminimax` | Beta (tier 1+): fluid 4–40 frame clips via PixMiniMax, up to 256px | `first_frame`, `last_frame`, `description`, `frame_count`, `drift_threshold`, `enhance_prompt`, `direction`, `no_background`, `seed` |
 | `animate_with_skeleton` | Pose control via keypoints | `skeleton_keypoints`, `reference_guidance_scale`, `pose_guidance_scale`, `isometric`, `color_image`, `seed` |
 | `edit_animation` | Edit animation frames (2-16) | `frames`, `description`, `no_background`, `seed` |
 | `interpolate_frames` | Generate in-between frames | `start_image`, `end_image`, `action`, `no_background`, `seed` |
@@ -152,6 +168,7 @@ Generation tools automatically poll for results — no manual job status checkin
 |------|-------------|-------------|
 | `edit_images` | Batch edit 1-16 images | `method` (text/reference), `description`, `reference_image`, `no_background`, `seed` |
 | `edit_image` | Edit single image | `image`, `description`, `width`, `height`, `text_guidance_scale`, `color_image`, `no_background`, `seed` |
+| `edit_image_pixen` | Edit on the Pixen model; preserves pose and pixel style (max 256px source) | `image`, `description`, `width`, `height`, `no_background`, `seed` |
 | `inpaint_v3` | Mask-based editing | `mask_image`, `bounding_box`, `crop_to_mask`, `no_background`, `seed` |
 | `inpaint` | Inpainting (legacy, max 200px) | `mask_image`, `text_guidance_scale`, `outline/shading/detail`, `isometric`, `color_image`, `seed` |
 
@@ -163,6 +180,9 @@ Generation tools automatically poll for results — no manual job status checkin
 | `image_to_pixelart_pro` | Convert photo to pixel art (Pro, auto-sizes) | `image`, `description`, `seed` |
 | `resize_image` | AI-powered pixel art resize | `reference_image`, `target_size`, `color_image` |
 | `remove_background` | Remove background (max 400px) | `background_removal_task`, `text_hint` |
+| `unzoom` | Recover native-resolution art from an upscaled image (min 256px, result is opaque) | `image`, `quantize` |
+| `correct_pixelart` | Clean stray/anti-aliased pixels without resizing (batch frames together) | `images`, `strength` |
+| `reduce_colors` | Quantize frames onto one shared palette, optional dithering | `images`, `num_colors` or `palette_image`, `dithering`, `dithering_strength` |
 
 ### Tilesets
 

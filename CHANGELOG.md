@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-09-12
+
+### Added
+- **14 new tools** (89 → 103) covering every endpoint added to the v2 API since
+  1.7.0, verified against the live OpenAPI spec:
+  - **Pro Flash engine** (new section): `create_image_pro_flash`,
+    `edit_image_pro_flash`, `inpaint_image_pro_flash`, `create_character_pro_flash`,
+    `create_object_pro_flash`, plus the free `get_pro_flash_capabilities` and
+    `get_pro_flash_cost` helpers. Image results carry a durable `source_image_id`
+    that the character/object tools accept to skip the first-image charge.
+  - **Pixel utilities**: `unzoom` (recover native resolution from upscaled art),
+    `correct_pixelart` (tidy stray/anti-aliased pixels without resizing), and
+    `reduce_colors` (quantize frames onto one shared palette with optional dithering).
+  - `edit_image_pixen` — text edits on the Pixen model that preserve pose and pixel style.
+  - `animate_pixminimax` — beta PixMiniMax animation, 4–40 frames at up to 256px.
+  - `download_character_spritesheet` / `download_object_spritesheet` — export a
+    uniform-grid spritesheet PNG plus layout JSON (ZIP saved to `pixellab-forge-output/`).
+
+### Changed
+- Binary downloads (`download_character_zip` and the new spritesheet exports) share
+  one `downloadToOutputDir` helper with the same filename sanitising and path checks.
+- README gained a Pro Flash section and rows for the new tools; the tool count reads 103.
+
 ## [1.7.0] - 2026-08-14
 
 ### Added
@@ -183,6 +206,7 @@ _Reimplements community ideas from #1 (credit: @ultimatefrisbie1). Tests: 78 →
   generation, characters/objects, animation, tilesets, editing, and rotation, with
   automatic job polling and a persistent job log for crash recovery.
 
+[1.8.0]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.8.0
 [1.7.0]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.7.0
 [1.6.0]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.6.0
 [1.5.0]: https://github.com/rabbitcannon/pixellab-forge-mcp/releases/tag/v1.5.0
